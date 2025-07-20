@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<!-- File: xml/Menu/addresshistory.xml -->
+<menu>
+  <item>
+    <path>civicrm/contact/view/address-history</path>
+    <title>Address History</title>
+    <page_callback>CRM_Addresshistory_Page_AddressHistory</page_callback>
+    <access_arguments>access CiviCRM</access_arguments>
+    <page_type>1</page_type>
+    <is_public>false</is_public>
+    <weight>1</weight>
+  </item>
+</menu>
