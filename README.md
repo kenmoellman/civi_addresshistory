@@ -155,4 +155,172 @@ When contacts are merged, the extension automatically:
 
 The triggers differentiate between significant and minor address changes:
 
-**Significant Changes** (create new history
+**Significant Changes** (create new history record):
+- Street address changes
+- City changes
+- State/Province changes
+- Country changes
+- Location type changes
+- Primary address designation changes
+
+**Minor Changes** (update existing record):
+- Supplemental address changes
+- Geocoding updates
+- Name/label changes
+
+## File Structure
+
+```
+com.moellman.addresshistory/
+├── info.xml                                    # Extension metadata
+├── addresshistory.php                          # Main extension file
+├── sql/
+│   ├── auto_install.sql                        # Database schema + trigger installation
+│   └── triggers.sql                            # Database triggers
+├── CRM/
+│   └── Addresshistory/
+│       ├── BAO/
+│       │   └── AddressHistory.php              # Business logic
+│       ├── DAO/
+│       │   └── AddressHistory.php              # Data access object
+│       ├── Page/
+│       │   └── AddressHistory.php              # Page controller
+│       └── Form/
+│           └── EditHistory.php                 # Edit form
+├── templates/
+│   └── CRM/
+│       └── Addresshistory/
+│           ├── Page/
+│           │   └── AddressHistory.tpl          # Display template
+│           └── Form/
+│               └── EditHistory.tpl             # Edit form template
+├── xml/
+│   └── Menu/
+│       └── addresshistory.xml                  # Menu configuration
+├── api/
+│   └── v3/
+│       └── AddressHistory.php                  # API endpoints
+└── README.md                                   # This file
+```
+
+## Permissions
+
+The extension respects CiviCRM's standard contact permissions:
+- Users need "view contact" permission to see address history
+- Users need "administer CiviCRM" permission to edit address history
+- API access requires appropriate contact view/edit permissions
+
+## Troubleshooting
+
+### Extension Not Installing
+- Check that your CiviCRM version is 5.47 or higher
+- Ensure the extensions directory is writable
+- Check the CiviCRM log for installation errors
+- Verify database user has TRIGGER privileges
+
+### Address History Not Appearing
+- Clear CiviCRM caches (Administer → System Settings → Cleanup Caches)
+- Check that the extension is enabled
+- Verify the contact has address records
+
+### History Records Not Creating
+- Check the CiviCRM error log for PHP errors
+- Ensure the civicrm_address_history table was created
+- Verify database triggers are installed:
+  ```sql
+  SHOW TRIGGERS LIKE 'civicrm_address';
+  ```
+- Verify database permissions for trigger creation
+
+### Checking Trigger Status
+You can verify triggers are working by checking:
+```php
+$status = CRM_Addresshistory_BAO_AddressHistory::checkTriggerStatus();
+if ($status['installed']) {
+  echo "All triggers are installed and active";
+} else {
+  echo "Missing triggers: " . implode(', ', $status['missing']);
+}
+```
+
+### Population Issues
+If existing addresses weren't populated during installation:
+```php
+// Re-run the population manually
+$count = CRM_Addresshistory_BAO_AddressHistory::populateExistingAddresses();
+echo "Populated {$count} addresses";
+```
+
+## Development
+
+### Triggers Used
+- `civicrm_address_history_after_insert` - Creates history on address insert
+- `civicrm_address_history_after_update` - Handles address updates
+- `civicrm_address_history_after_delete` - Ends history on address delete
+
+### Hooks Used
+- `hook_civicrm_tabset()` - Adds address history tab
+- `hook_civicrm_merge()` - Handles contact merges
+- `hook_civicrm_postInstall()` - Populates existing addresses
+
+### Key Classes
+- `CRM_Addresshistory_BAO_AddressHistory` - Main business logic
+- `CRM_Addresshistory_DAO_AddressHistory` - Database access
+- `CRM_Addresshistory_Page_AddressHistory` - Display controller
+- `CRM_Addresshistory_Form_EditHistory` - Edit form
+
+## Testing
+
+To test the extension:
+
+1. **Basic Functionality**:
+   - Add a new address to a contact
+   - Verify it appears in address history
+   - Edit the address significantly (street address)
+   - Verify a new history record is created with end date on the old record
+
+2. **Primary Address Handling**:
+   - Set an address as primary
+   - Add another address of the same location type as primary
+   - Verify the first address history record is ended
+
+3. **Contact Merge**:
+   - Create two contacts with address history
+   - Merge them
+   - Verify all address history is preserved
+
+4. **API Testing**:
+   ```php
+   // Test API access
+   $result = civicrm_api3('AddressHistory', 'get', ['contact_id' => 123]);
+   ```
+
+## Performance Considerations
+
+- Database triggers add minimal overhead to address operations
+- Indexes are provided on key fields for efficient querying
+- For very large databases, consider archiving old address history records
+
+## Support
+
+For issues, feature requests, or contributions:
+1. Submit issues to: https://github.com/kenmoellman/civi_addresshistory/issues
+2. Check the CiviCRM community forums
+3. Review the extension documentation
+
+## License
+
+This extension is licensed under AGPL-3.0, the same license as CiviCRM.
+
+## Changelog
+
+### Version 0.5.0 (Beta)
+- Initial release
+- Database trigger-based address history tracking
+- Address history tab on contact pages
+- Administrator editing capabilities
+- API support for programmatic access
+- Contact merge support
+- SearchKit integration (CiviCRM 5.47+)
+- Comprehensive coverage of all address changes
+- Automatic population of existing addresses during installation
