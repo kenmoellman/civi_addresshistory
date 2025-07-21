@@ -36,6 +36,7 @@ class CRM_Addresshistory_Upgrader extends CRM_Addresshistory_Upgrader_Base {
    * Called during enable.
    */
   public function enable() {
+    // Always recreate triggers when enabling
     $this->createTriggers();
   }
 
