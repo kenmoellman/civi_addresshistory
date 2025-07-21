@@ -160,5 +160,6 @@ function addresshistory_civicrm_merge($type, &$data, $mainId = NULL, $otherId = 
  * Implements hook_civicrm_navigationMenu().
  */
 function addresshistory_civicrm_navigationMenu(&$menu) {
+  // Re-enabled with safety method in upgrader
   _addresshistory_civix_civicrm_navigationMenu($menu);
 }
