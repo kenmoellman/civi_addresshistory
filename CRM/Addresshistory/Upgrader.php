@@ -53,31 +53,7 @@ class CRM_Addresshistory_Upgrader extends CRM_Addresshistory_Upgrader_Base {
     // Drop existing triggers first
     $this->dropTriggers();
     
-    // Check if triggers.sql exists and use it
-    $sqlFile = E::path('sql/triggers.sql');
-    if (file_exists($sqlFile)) {
-      // Read the SQL file
-      $sql = file_get_contents($sqlFile);
-      
-      // Split the SQL into individual statements
-      $statements = preg_split('/;\s*$/m', $sql);
-      
-      foreach ($statements as $statement) {
-        $statement = trim($statement);
-        if (!empty($statement)) {
-          try {
-            CRM_Core_DAO::executeQuery($statement);
-          } catch (Exception $e) {
-            // Log the error but continue
-            CRM_Core_Error::debug_log_message('Address History Trigger Creation Error: ' . $e->getMessage());
-            CRM_Core_Error::debug_log_message('Failed Statement: ' . $statement);
-          }
-        }
-      }
-      return;
-    }
-    
-    // If triggers.sql doesn't exist, create triggers manually
+    // Create triggers manually (more reliable than parsing SQL file)
     $this->createTriggersManually();
   }
 
@@ -104,18 +80,20 @@ class CRM_Addresshistory_Upgrader extends CRM_Addresshistory_Upgrader_Base {
                 
                 INSERT INTO civicrm_address_history (
                     contact_id, location_type_id, is_primary, is_billing,
-                    street_address, city, state_province_id, postal_code, country_id,
+                    street_address, supplemental_address_1, supplemental_address_2,
+                    city, state_province_id, postal_code, country_id,
                     start_date, original_address_id, created_date
                 ) VALUES (
                     NEW.contact_id, NEW.location_type_id, NEW.is_primary, NEW.is_billing,
-                    NEW.street_address, NEW.city, NEW.state_province_id, NEW.postal_code, NEW.country_id,
+                    NEW.street_address, NEW.supplemental_address_1, NEW.supplemental_address_2,
+                    NEW.city, NEW.state_province_id, NEW.postal_code, NEW.country_id,
                     NOW(), NEW.id, NOW()
                 );
             END IF;
         END
       ");
 
-      // Create UPDATE trigger
+      // Create UPDATE trigger  
       CRM_Core_DAO::executeQuery("
         CREATE TRIGGER civicrm_address_history_after_update 
         AFTER UPDATE ON civicrm_address
@@ -149,15 +127,43 @@ class CRM_Addresshistory_Upgrader extends CRM_Addresshistory_Upgrader_Base {
                         WHERE id = current_history_id;
                     END IF;
                     
+                    IF NEW.is_primary = 1 AND NEW.location_type_id IS NOT NULL THEN
+                        UPDATE civicrm_address_history 
+                        SET end_date = NOW() 
+                        WHERE contact_id = NEW.contact_id 
+                        AND location_type_id = NEW.location_type_id 
+                        AND is_primary = 1 
+                        AND id != IFNULL(current_history_id, 0)
+                        AND (end_date IS NULL OR end_date > NOW());
+                    END IF;
+                    
                     INSERT INTO civicrm_address_history (
                         contact_id, location_type_id, is_primary, is_billing,
-                        street_address, city, state_province_id, postal_code, country_id,
+                        street_address, supplemental_address_1, supplemental_address_2,
+                        city, state_province_id, postal_code, country_id,
                         start_date, original_address_id, created_date
                     ) VALUES (
                         NEW.contact_id, NEW.location_type_id, NEW.is_primary, NEW.is_billing,
-                        NEW.street_address, NEW.city, NEW.state_province_id, NEW.postal_code, NEW.country_id,
+                        NEW.street_address, NEW.supplemental_address_1, NEW.supplemental_address_2,
+                        NEW.city, NEW.state_province_id, NEW.postal_code, NEW.country_id,
                         NOW(), NEW.id, NOW()
                     );
+                ELSE
+                    IF current_history_id IS NOT NULL THEN
+                        UPDATE civicrm_address_history SET
+                            location_type_id = NEW.location_type_id,
+                            is_primary = NEW.is_primary,
+                            is_billing = NEW.is_billing,
+                            street_address = NEW.street_address,
+                            supplemental_address_1 = NEW.supplemental_address_1,
+                            supplemental_address_2 = NEW.supplemental_address_2,
+                            city = NEW.city,
+                            state_province_id = NEW.state_province_id,
+                            postal_code = NEW.postal_code,
+                            country_id = NEW.country_id,
+                            modified_date = NOW()
+                        WHERE id = current_history_id;
+                    END IF;
                 END IF;
             END IF;
         END
