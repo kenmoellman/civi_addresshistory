@@ -236,32 +236,14 @@ class CRM_Addresshistory_Upgrader_Base {
   }
 
   private function getCurrentRevisionDeprecated() {
-    $revision = NULL;
-    switch ($this->extensionName) {
-      case 'com.moellman.addresshistory':
-        $revision = CRM_Core_DAO::getFieldValue('CRM_Core_DAO_Extension', $this->extensionName, 'revision', 'full_name');
-        break;
-
-      default:
-        return FALSE;
-    }
-    $this->revisionStorageIsDeprecated = TRUE;
-    return $revision;
+    // For CiviCRM 6.4, we don't use the deprecated revision field
+    // Instead, return null to indicate no previous revision
+    return NULL;
   }
 
   public function setCurrentRevision($revision) {
     CRM_Core_BAO_Extension::setSchemaVersion($this->extensionName, $revision);
-
-    // clean up legacy schema version store (CRM-19252)
-    $this->deleteDeprecatedRevision();
     return TRUE;
-  }
-
-  private function deleteDeprecatedRevision() {
-    if ($this->revisionStorageIsDeprecated) {
-      $setting = "ext_schema_rev_{$this->extensionName}";
-      CRM_Core_BAO_Setting::deleteItem(CRM_Core_BAO_Setting::EXTENSION_PREFERENCES_NAME, $setting);
-    }
   }
 
   // ******** Hook delegates ********
