@@ -365,7 +365,7 @@ class CRM_Addresshistory_Upgrader extends CRM_Addresshistory_Upgrader_Base {
         timezone,
         name,
         master_id,
-        NOW() as start_date,
+        '2000-01-01 00:00:00' as start_date,
         id as original_address_id,
         NOW() as created_date
       FROM civicrm_address a
@@ -386,4 +386,3 @@ class CRM_Addresshistory_Upgrader extends CRM_Addresshistory_Upgrader_Base {
   }
 
 }
-
