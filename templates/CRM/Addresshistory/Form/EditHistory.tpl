@@ -1,4 +1,5 @@
 {* File: templates/CRM/Addresshistory/Form/EditHistory.tpl *}
+$cfg['Servers'][$i][
 
 <div class="crm-content-block">
   <div id="help">
