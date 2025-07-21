@@ -38,6 +38,21 @@ class CRM_Addresshistory_Upgrader extends CRM_Addresshistory_Upgrader_Base {
   public function enable() {
     // Always recreate triggers when enabling
     $this->createTriggers();
+    
+    // Also try to populate existing addresses if table is empty
+    $count = CRM_Core_DAO::singleValueQuery("SELECT COUNT(*) FROM civicrm_address_history");
+    if ($count == 0) {
+      CRM_Addresshistory_BAO_AddressHistory::populateExistingAddresses();
+    }
+  }
+
+  /**
+   * Public method to manually recreate triggers (can be called via API)
+   */
+  public static function recreateTriggers() {
+    $upgrader = self::instance();
+    $upgrader->createTriggers();
+    return ['status' => 'success', 'message' => 'Triggers recreated successfully'];
   }
 
   /**
@@ -54,8 +69,17 @@ class CRM_Addresshistory_Upgrader extends CRM_Addresshistory_Upgrader_Base {
     // Drop existing triggers first
     $this->dropTriggers();
     
+    // Log that we're creating triggers
+    CRM_Core_Error::debug_log_message('Address History: Starting trigger creation');
+    
     // Create triggers manually (more reliable than parsing SQL file)
-    $this->createTriggersManually();
+    try {
+      $this->createTriggersManually();
+      CRM_Core_Error::debug_log_message('Address History: Triggers created successfully');
+    } catch (Exception $e) {
+      CRM_Core_Error::debug_log_message('Address History: Trigger creation failed - ' . $e->getMessage());
+      throw $e;
+    }
   }
 
   /**
