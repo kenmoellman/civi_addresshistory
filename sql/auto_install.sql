@@ -53,6 +53,3 @@ CREATE TABLE `civicrm_address_history` (
   CONSTRAINT `FK_civicrm_address_history_state_province_id` FOREIGN KEY (`state_province_id`) REFERENCES `civicrm_state_province` (`id`) ON DELETE SET NULL,
   CONSTRAINT `FK_civicrm_address_history_country_id` FOREIGN KEY (`country_id`) REFERENCES `civicrm_country` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci COMMENT='Address History for Contacts';
-
--- Install the database triggers immediately after table creation
-SOURCE triggers.sql;
