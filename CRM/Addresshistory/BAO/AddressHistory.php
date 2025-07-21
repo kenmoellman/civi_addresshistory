@@ -1,6 +1,8 @@
 <?php
 // File: CRM/Addresshistory/BAO/AddressHistory.php
 
+use CRM_Addresshistory_ExtensionUtil as E;
+
 class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_AddressHistory {
 
   /**
