@@ -127,110 +127,6 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
   }
 
   /**
-   * Populate address history with existing addresses from civicrm_address table.
-   * Called during extension installation.
-   */
-  public static function populateExistingAddresses() {
-    try {
-      // Get all existing addresses
-      $query = "
-        INSERT INTO civicrm_address_history (
-          contact_id,
-          location_type_id,
-          is_primary,
-          is_billing,
-          street_address,
-          street_number,
-          street_number_suffix,
-          street_number_predirectional,
-          street_name,
-          street_type,
-          street_number_postdirectional,
-          street_unit,
-          supplemental_address_1,
-          supplemental_address_2,
-          supplemental_address_3,
-          city,
-          county_id,
-          state_province_id,
-          postal_code_suffix,
-          postal_code,
-          usps_adc,
-          country_id,
-          geo_code_1,
-          geo_code_2,
-          manual_geo_code,
-          timezone,
-          name,
-          master_id,
-          start_date,
-          original_address_id,
-          created_date
-        )
-        SELECT 
-          contact_id,
-          location_type_id,
-          is_primary,
-          is_billing,
-          street_address,
-          street_number,
-          street_number_suffix,
-          street_number_predirectional,
-          street_name,
-          street_type,
-          street_number_postdirectional,
-          street_unit,
-          supplemental_address_1,
-          supplemental_address_2,
-          supplemental_address_3,
-          city,
-          county_id,
-          state_province_id,
-          postal_code_suffix,
-          postal_code,
-          usps_adc,
-          country_id,
-          geo_code_1,
-          geo_code_2,
-          manual_geo_code,
-          timezone,
-          name,
-          master_id,
-          COALESCE(
-            (SELECT MIN(log_date) FROM civicrm_log WHERE entity_table = 'civicrm_address' AND entity_id = a.id AND log_action = 'Insert'),
-            a.modified_date,
-            a.created_date,
-            NOW()
-          ) as start_date,
-          id as original_address_id,
-          NOW() as created_date
-        FROM civicrm_address a
-        WHERE contact_id IS NOT NULL
-      ";
-      
-      $result = CRM_Core_DAO::executeQuery($query);
-      $count = CRM_Core_DAO::affectedRows();
-      
-      CRM_Core_Session::setStatus(
-        ts('Successfully populated address history with %1 existing addresses.', [1 => $count]),
-        ts('Address History Populated'),
-        'success'
-      );
-      
-      return $count;
-      
-    } catch (Exception $e) {
-      CRM_Core_Error::debug_log_message('Error populating existing addresses: ' . $e->getMessage());
-      CRM_Core_Session::setStatus(
-        ts('Error populating address history. Check the error log for details.'),
-        ts('Population Error'),
-        'error'
-      );
-      return FALSE;
-    }
-  }
-
-  /**
    * Check if address history triggers are installed and active.
    *
    * @return array Array with status information
@@ -274,5 +170,5 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
     
     return $status;
   }
-
 }
+
