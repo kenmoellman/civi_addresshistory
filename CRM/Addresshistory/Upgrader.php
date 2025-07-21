@@ -209,4 +209,13 @@ class CRM_Addresshistory_Upgrader extends CRM_Addresshistory_Upgrader_Base {
       }
     }
   }
+
+  /**
+   * Append navigation menu items (required by civix).
+   */
+  public function appendNavigationMenu(&$menu) {
+    // We don't need to add any navigation menu items
+    // This method exists to prevent civix from breaking
+    return;
+  }
 }
