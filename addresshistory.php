@@ -98,6 +98,12 @@ function addresshistory_civicrm_entityTypes(&$entityTypes) {
  * Implements hook_civicrm_tabset().
  */
 function addresshistory_civicrm_tabset($tabsetName, &$tabs, $context) {
+  // Temporarily disable to isolate the issue
+  return;
+  
+  // DEBUG: Log what's being called
+  CRM_Core_Error::debug_log_message("Tabset called - Name: {$tabsetName}, Context: " . print_r($context, true));
+  
   // Only add tab to contact view pages and only if we have a valid contact ID
   if ($tabsetName !== 'civicrm/contact/view' || empty($context['contact_id'])) {
     return;
