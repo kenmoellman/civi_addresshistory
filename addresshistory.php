@@ -98,25 +98,43 @@ function addresshistory_civicrm_entityTypes(&$entityTypes) {
  * Implements hook_civicrm_tabset().
  */
 function addresshistory_civicrm_tabset($tabsetName, &$tabs, $context) {
-  if ($tabsetName === 'civicrm/contact/view' && !empty($context['contact_id'])) {
-    $contactId = $context['contact_id'];
-    
-    // Check permission
-    if (CRM_Contact_BAO_Contact_Permission::allow($contactId)) {
-      $count = CRM_Addresshistory_BAO_AddressHistory::getAddressHistoryCount($contactId);
-      
-      $tabs[] = [
-        'id' => 'address_history',
-        'url' => CRM_Utils_System::url('civicrm/contact/view/address-history', [
-          'cid' => $contactId,
-          'reset' => 1,
-        ]),
-        'title' => E::ts('Address History'),
-        'weight' => 300,
-        'count' => $count,
-      ];
-    }
+  // Only add tab to contact view pages and only if we have a valid contact ID
+  if ($tabsetName !== 'civicrm/contact/view' || empty($context['contact_id'])) {
+    return;
   }
+  
+  $contactId = $context['contact_id'];
+  
+  // Validate contact ID and permissions
+  if (!is_numeric($contactId) || $contactId <= 0) {
+    return;
+  }
+  
+  if (!CRM_Contact_BAO_Contact_Permission::allow($contactId)) {
+    return;
+  }
+  
+  // Get count safely
+  $count = 0;
+  try {
+    $count = CRM_Addresshistory_BAO_AddressHistory::getAddressHistoryCount($contactId);
+  } catch (Exception $e) {
+    CRM_Core_Error::debug_log_message('Address History Tab Count Error: ' . $e->getMessage());
+    // Continue with count = 0
+  }
+  
+  // Add the tab
+  $tabs['address_history'] = [
+    'id' => 'address_history',
+    'url' => CRM_Utils_System::url('civicrm/contact/view/address-history', [
+      'cid' => $contactId,
+      'reset' => 1,
+    ]),
+    'title' => E::ts('Address History'),
+    'weight' => 300,
+    'count' => $count,
+    'class' => 'livePage',
+  ];
 }
 
 /**
