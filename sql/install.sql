@@ -1,4 +1,4 @@
--- Simple table creation for address history
+-- Address History Table Schema
 -- File: sql/install.sql
 
 DROP TABLE IF EXISTS `civicrm_address_history`;
@@ -39,17 +39,14 @@ CREATE TABLE `civicrm_address_history` (
   `modified_date` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'When was this address history record last modified',
   `original_address_id` int(10) unsigned DEFAULT NULL COMMENT 'Original address ID from civicrm_address',
   PRIMARY KEY (`id`),
-  KEY `FK_civicrm_address_history_contact_id` (`contact_id`),
-  KEY `FK_civicrm_address_history_location_type_id` (`location_type_id`),
-  KEY `FK_civicrm_address_history_county_id` (`county_id`),
-  KEY `FK_civicrm_address_history_state_province_id` (`state_province_id`),
-  KEY `FK_civicrm_address_history_country_id` (`country_id`),
+  KEY `index_contact_id` (`contact_id`),
+  KEY `index_location_type_id` (`location_type_id`),
+  KEY `index_original_address_id` (`original_address_id`),
   KEY `index_start_date` (`start_date`),
   KEY `index_end_date` (`end_date`),
-  KEY `index_original_address_id` (`original_address_id`),
   CONSTRAINT `FK_civicrm_address_history_contact_id` FOREIGN KEY (`contact_id`) REFERENCES `civicrm_contact` (`id`) ON DELETE CASCADE,
   CONSTRAINT `FK_civicrm_address_history_location_type_id` FOREIGN KEY (`location_type_id`) REFERENCES `civicrm_location_type` (`id`) ON DELETE SET NULL,
   CONSTRAINT `FK_civicrm_address_history_county_id` FOREIGN KEY (`county_id`) REFERENCES `civicrm_county` (`id`) ON DELETE SET NULL,
   CONSTRAINT `FK_civicrm_address_history_state_province_id` FOREIGN KEY (`state_province_id`) REFERENCES `civicrm_state_province` (`id`) ON DELETE SET NULL,
   CONSTRAINT `FK_civicrm_address_history_country_id` FOREIGN KEY (`country_id`) REFERENCES `civicrm_country` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci COMMENT='Address History for Contacts';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Address history tracking table';
