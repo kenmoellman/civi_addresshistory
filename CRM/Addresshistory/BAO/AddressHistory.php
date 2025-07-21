@@ -170,5 +170,95 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
     
     return $status;
   }
-}
 
+  /**
+   * Populate existing addresses into the history table.
+   * 
+   * @return bool
+   */
+  public static function populateExistingAddresses() {
+    $query = "
+      INSERT INTO civicrm_address_history (
+        contact_id,
+        location_type_id,
+        is_primary,
+        is_billing,
+        street_address,
+        street_number,
+        street_number_suffix,
+        street_number_predirectional,
+        street_name,
+        street_type,
+        street_number_postdirectional,
+        street_unit,
+        supplemental_address_1,
+        supplemental_address_2,
+        supplemental_address_3,
+        city,
+        county_id,
+        state_province_id,
+        postal_code_suffix,
+        postal_code,
+        usps_adc,
+        country_id,
+        geo_code_1,
+        geo_code_2,
+        manual_geo_code,
+        timezone,
+        name,
+        master_id,
+        start_date,
+        original_address_id,
+        created_date
+      )
+      SELECT 
+        contact_id,
+        location_type_id,
+        is_primary,
+        is_billing,
+        street_address,
+        street_number,
+        street_number_suffix,
+        street_number_predirectional,
+        street_name,
+        street_type,
+        street_number_postdirectional,
+        street_unit,
+        supplemental_address_1,
+        supplemental_address_2,
+        supplemental_address_3,
+        city,
+        county_id,
+        state_province_id,
+        postal_code_suffix,
+        postal_code,
+        usps_adc,
+        country_id,
+        geo_code_1,
+        geo_code_2,
+        manual_geo_code,
+        timezone,
+        name,
+        master_id,
+        '2000-01-01 00:00:00' as start_date,
+        id as original_address_id,
+        NOW() as created_date
+      FROM civicrm_address a
+      WHERE contact_id IS NOT NULL
+    ";
+    
+    $dao = CRM_Core_DAO::executeQuery($query);
+    
+    // Get the count of existing addresses for feedback
+    $countQuery = "SELECT COUNT(*) FROM civicrm_address WHERE contact_id IS NOT NULL";
+    $count = CRM_Core_DAO::singleValueQuery($countQuery);
+    
+    CRM_Core_Session::setStatus(
+      E::ts('Successfully populated address history with %1 existing addresses.', [1 => $count]),
+      E::ts('Address History Populated'),
+      'success'
+    );
+    
+    return TRUE;
+  }
+}
