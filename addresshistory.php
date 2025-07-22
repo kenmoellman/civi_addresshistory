@@ -95,6 +95,37 @@ function addresshistory_civicrm_entityTypes(&$entityTypes) {
 }
 
 /**
+ * Implements hook_civicrm_contactSummaryTabs().
+ * This hook is used by Contact Layout Editor to detect available tabs.
+ */
+function addresshistory_civicrm_contactSummaryTabs(&$tabs) {
+  // Only register with Contact Layout Editor if it's actually enabled
+  try {
+    $manager = CRM_Extension_System::singleton()->getManager();
+    $status = $manager->getStatus('org.civicrm.contactlayout');
+    
+    if ($status !== CRM_Extension_Manager::STATUS_INSTALLED) {
+      CRM_Core_Error::debug_log_message("CiviCRM Contact Layout Editor not enabled, skipping contactSummaryTabs hook");
+      return;
+    }
+  } catch (Exception $e) {
+    // If we can't check the status, assume Contact Layout Editor isn't available
+    CRM_Core_Error::debug_log_message("Could not check CiviCRM Contact Layout Editor status: " . $e->getMessage());
+    return;
+  }
+  
+  $tabs['address_history'] = [
+    'id' => 'address_history',
+    'title' => E::ts('Address History'),
+    'weight' => 300,
+    'icon' => 'fa-history',
+    'is_active' => TRUE,
+  ];
+  
+  CRM_Core_Error::debug_log_message("Address History tab registered with CiviCRM Contact Layout Editor");
+}
+
+/**
  * Implements hook_civicrm_tabset().
  */
 function addresshistory_civicrm_tabset($tabsetName, &$tabs, $context) {
