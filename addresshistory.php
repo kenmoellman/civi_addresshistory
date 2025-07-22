@@ -344,9 +344,17 @@ function addresshistory_civicrm_buildForm($formName, &$form) {
                 $('form#Merge').on('submit', function() {
                   var selectedAction = $('input[name=\"address_history_action\"]:checked').val();
                   
+                  console.log('Address History: Form submitted with action:', selectedAction);
+                  
                   // Add hidden field to pass the action to the backend
                   if (selectedAction && !$('input[name=\"_address_history_action\"]').length) {
                     $(this).append('<input type=\"hidden\" name=\"_address_history_action\" value=\"' + selectedAction + '\">');
+                    console.log('Address History: Added hidden field with value:', selectedAction);
+                  }
+                  
+                  // Also try to add it to the form data
+                  if (selectedAction) {
+                    $('form#Merge').append('<input type=\"hidden\" name=\"address_history_action\" value=\"' + selectedAction + '\">');
                   }
                 });
               }
@@ -389,18 +397,81 @@ function addresshistory_civicrm_buildForm($formName, &$form) {
  * Enhanced merge processing - captures the user's choice
  */
 function addresshistory_civicrm_merge($type, &$data, $mainId = NULL, $otherId = NULL, $tables = NULL) {
+  // Log all merge attempts for debugging
+  CRM_Core_Error::debug_log_message("Address History Merge Hook Called - Type: {$type}, MainID: {$mainId}, OtherID: {$otherId}");
+  
   if ($type == 'batch' && $mainId && $otherId) {
     try {
       // Get the selected action from the form submission
       $action = CRM_Utils_Request::retrieve('_address_history_action', 'String');
-      if (!$action) {
-        $action = 'move'; // Default behavior
+      CRM_Core_Error::debug_log_message("Address History Merge - Selected Action: " . ($action ?: 'NULL'));
+      
+      // Also try to get from POST data
+      if (!$action && !empty($_POST['_address_history_action'])) {
+        $action = $_POST['_address_history_action'];
+        CRM_Core_Error::debug_log_message("Address History Merge - Action from POST: {$action}");
       }
       
-      CRM_Addresshistory_BAO_AddressHistory::mergeAddressHistory($mainId, $otherId, ['action' => $action]);
+      if (!$action) {
+        $action = 'move'; // Default behavior
+        CRM_Core_Error::debug_log_message("Address History Merge - Using default action: {$action}");
+      }
+      
+      // Check if contacts have address history
+      $mainCount = CRM_Addresshistory_BAO_AddressHistory::getAddressHistoryCount($mainId);
+      $otherCount = CRM_Addresshistory_BAO_AddressHistory::getAddressHistoryCount($otherId);
+      
+      CRM_Core_Error::debug_log_message("Address History Merge - Main contact has {$mainCount} records, Other contact has {$otherCount} records");
+      
+      if ($otherCount > 0) {
+        CRM_Addresshistory_BAO_AddressHistory::mergeAddressHistory($mainId, $otherId, ['action' => $action]);
+      } else {
+        CRM_Core_Error::debug_log_message("Address History Merge - No records to merge from other contact");
+      }
+      
     } catch (Exception $e) {
       CRM_Core_Error::debug_log_message('Address History Merge Error: ' . $e->getMessage());
+      CRM_Core_Session::setStatus(
+        ts('Error merging address history: %1', [1 => $e->getMessage()]),
+        ts('Merge Error'),
+        'error'
+      );
     }
+  }
+}
+
+/**
+ * Alternative merge hook - sometimes called instead of civicrm_merge
+ */
+function addresshistory_civicrm_postMerge($mainId, $otherId, $data) {
+  CRM_Core_Error::debug_log_message("Address History postMerge Hook Called - MainID: {$mainId}, OtherID: {$otherId}");
+  
+  try {
+    // Get the selected action from the form submission
+    $action = CRM_Utils_Request::retrieve('_address_history_action', 'String');
+    
+    // Also try to get from POST data
+    if (!$action && !empty($_POST['_address_history_action'])) {
+      $action = $_POST['_address_history_action'];
+    }
+    
+    if (!$action) {
+      $action = 'move'; // Default behavior
+    }
+    
+    CRM_Core_Error::debug_log_message("Address History postMerge - Action: {$action}");
+    
+    // Check if contacts have address history (the other contact might still exist at this point)
+    $otherCount = CRM_Addresshistory_BAO_AddressHistory::getAddressHistoryCount($otherId);
+    
+    if ($otherCount > 0) {
+      CRM_Addresshistory_BAO_AddressHistory::mergeAddressHistory($mainId, $otherId, ['action' => $action]);
+    } else {
+      CRM_Core_Error::debug_log_message("Address History postMerge - No records found for other contact");
+    }
+    
+  } catch (Exception $e) {
+    CRM_Core_Error::debug_log_message('Address History postMerge Error: ' . $e->getMessage());
   }
 }
 
