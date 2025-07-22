@@ -65,56 +65,60 @@
 {literal}
 <script type="text/javascript">
 CRM.$(function($) {
-  // Simple approach: Monitor for page content changes and close popup
-  var originalContent = $('.crm-content-block').html();
+  var formSubmitted = false;
   
-  // Check every 500ms if the page content has changed (indicating redirect)
-  var checkInterval = setInterval(function() {
-    // If we see the address history page content, close the popup
-    if ($('h3:contains("Address History")').length > 0 || 
-        $('.crm-results-block-header:contains("Address History")').length > 0) {
-      
-      clearInterval(checkInterval);
-      
-      // Close the popup
-      setTimeout(function() {
-        $('.ui-dialog-content:visible').dialog('close');
-        
-        // Refresh parent window address history tab
-        if (window.parent && window.parent.$) {
-          if (window.parent.$('#tab_address_history').length > 0) {
-            window.parent.$('#tab_address_history').crmSnippet('refresh');
-          } else {
-            window.parent.location.reload();
-          }
-        }
-      }, 100);
-    }
+  // Track when the form is actually submitted
+  $('form.CRM_Addresshistory_Form_EditHistory').on('submit', function() {
+    formSubmitted = true;
     
-    // Also check for success messages
-    if ($('.crm-status-box-outer .status.success').length > 0 && 
-        $('.crm-status-box-outer .status.success:contains("successfully")').length > 0) {
-      
-      clearInterval(checkInterval);
-      
-      setTimeout(function() {
-        $('.ui-dialog-content:visible').dialog('close');
+    // Start monitoring for success only AFTER form submission
+    var checkInterval = setInterval(function() {
+      // Check for success messages
+      if ($('.crm-status-box-outer .status.success').length > 0 && 
+          $('.crm-status-box-outer .status.success:contains("successfully")').length > 0) {
         
-        if (window.parent && window.parent.$) {
-          if (window.parent.$('#tab_address_history').length > 0) {
-            window.parent.$('#tab_address_history').crmSnippet('refresh');
-          } else {
-            window.parent.location.reload();
+        clearInterval(checkInterval);
+        
+        // Close the popup after successful save
+        setTimeout(function() {
+          $('.ui-dialog-content:visible').dialog('close');
+          
+          // Refresh parent window address history tab
+          if (window.parent && window.parent.$) {
+            if (window.parent.$('#tab_address_history').length > 0) {
+              window.parent.$('#tab_address_history').crmSnippet('refresh');
+            } else {
+              window.parent.location.reload();
+            }
           }
-        }
-      }, 500);
-    }
-  }, 500);
-  
-  // Stop checking after 10 seconds to avoid infinite loops
-  setTimeout(function() {
-    clearInterval(checkInterval);
-  }, 10000);
+        }, 200);
+      }
+      
+      // Also check if we've been redirected to the address history page
+      else if ($('h3:contains("Address History")').length > 0 || 
+               $('.crm-results-block-header:contains("Address History")').length > 0) {
+        
+        clearInterval(checkInterval);
+        
+        setTimeout(function() {
+          $('.ui-dialog-content:visible').dialog('close');
+          
+          if (window.parent && window.parent.$) {
+            if (window.parent.$('#tab_address_history').length > 0) {
+              window.parent.$('#tab_address_history').crmSnippet('refresh');
+            } else {
+              window.parent.location.reload();
+            }
+          }
+        }, 200);
+      }
+    }, 500);
+    
+    // Stop checking after 10 seconds
+    setTimeout(function() {
+      clearInterval(checkInterval);
+    }, 10000);
+  });
   
   // Handle cancel button
   $('input[name="_qf_EditHistory_cancel"]').on('click', function(e) {
