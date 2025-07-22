@@ -1,247 +1,293 @@
 <?php
-// File: CRM/Addresshistory/Upgrader.php
+require_once 'addresshistory.civix.php';
 
 use CRM_Addresshistory_ExtensionUtil as E;
 
 /**
- * Collection of upgrade steps.
+ * Implements hook_civicrm_config().
  */
-class CRM_Addresshistory_Upgrader extends CRM_Addresshistory_Upgrader_Base {
+function addresshistory_civicrm_config(&$config) {
+  _addresshistory_civix_civicrm_config($config);
+}
 
-  /**
-   * Called during installation.
-   */
-  public function install() {
-    $this->executeSqlFile('sql/install.sql');
-    $this->createTriggers();
-  }
+/**
+ * Implements hook_civicrm_xmlMenu().
+ */
+function addresshistory_civicrm_xmlMenu(&$files) {
+  _addresshistory_civix_civicrm_xmlMenu($files);
+}
 
-  /**
-   * Called after installation.
-   */
-  public function postInstall() {
-    // Populate existing addresses into history table
-    CRM_Addresshistory_BAO_AddressHistory::populateExistingAddresses();
-  }
+/**
+ * Implements hook_civicrm_install().
+ */
+function addresshistory_civicrm_install() {
+  _addresshistory_civix_civicrm_install();
+}
 
-  /**
-   * Called during uninstall.
-   */
-  public function uninstall() {
-    $this->dropTriggers();
-    $this->executeSqlFile('sql/uninstall.sql');
-  }
+/**
+ * Implements hook_civicrm_postInstall().
+ */
+function addresshistory_civicrm_postInstall() {
+  _addresshistory_civix_civicrm_postInstall();
+}
 
-  /**
-   * Called during enable.
-   */
-  public function enable() {
-    // Always recreate triggers when enabling
-    $this->createTriggers();
+/**
+ * Implements hook_civicrm_uninstall().
+ */
+function addresshistory_civicrm_uninstall() {
+  _addresshistory_civix_civicrm_uninstall();
+}
+
+/**
+ * Implements hook_civicrm_enable().
+ */
+function addresshistory_civicrm_enable() {
+  _addresshistory_civix_civicrm_enable();
+}
+
+/**
+ * Implements hook_civicrm_disable().
+ */
+function addresshistory_civicrm_disable() {
+  _addresshistory_civix_civicrm_disable();
+}
+
+/**
+ * Implements hook_civicrm_upgrade().
+ */
+function addresshistory_civicrm_upgrade($op, CRM_Queue_Queue $queue = NULL) {
+  return _addresshistory_civix_civicrm_upgrade($op, $queue);
+}
+
+/**
+ * Implements hook_civicrm_managed().
+ */
+function addresshistory_civicrm_managed(&$entities) {
+  _addresshistory_civix_civicrm_managed($entities);
+}
+
+/**
+ * Implements hook_civicrm_caseTypes().
+ */
+function addresshistory_civicrm_caseTypes(&$caseTypes) {
+  _addresshistory_civix_civicrm_caseTypes($caseTypes);
+}
+
+/**
+ * Implements hook_civicrm_angularModules().
+ */
+function addresshistory_civicrm_angularModules(&$angularModules) {
+  _addresshistory_civix_civicrm_angularModules($angularModules);
+}
+
+/**
+ * Implements hook_civicrm_alterSettingsFolders().
+ */
+function addresshistory_civicrm_alterSettingsFolders(&$metaDataFolders = NULL) {
+  _addresshistory_civix_civicrm_alterSettingsFolders($metaDataFolders);
+}
+
+/**
+ * Implements hook_civicrm_entityTypes().
+ */
+function addresshistory_civicrm_entityTypes(&$entityTypes) {
+  _addresshistory_civix_civicrm_entityTypes($entityTypes);
+}
+
+/**
+ * Implements hook_civicrm_contactSummaryTabs().
+ * This hook is used by Contact Layout Editor to detect available tabs.
+ */
+function addresshistory_civicrm_contactSummaryTabs(&$tabs) {
+  // Only register with Contact Layout Editor if it's actually enabled
+  try {
+    $manager = CRM_Extension_System::singleton()->getManager();
+    $status = $manager->getStatus('org.civicrm.contactlayout');
     
-    // Also try to populate existing addresses if table is empty
-    $count = CRM_Core_DAO::singleValueQuery("SELECT COUNT(*) FROM civicrm_address_history");
-    if ($count == 0) {
-      CRM_Addresshistory_BAO_AddressHistory::populateExistingAddresses();
+    if ($status !== CRM_Extension_Manager::STATUS_INSTALLED) {
+      CRM_Core_Error::debug_log_message("CiviCRM Contact Layout Editor not enabled, skipping contactSummaryTabs hook");
+      return;
     }
-  }
-
-  /**
-   * Public method to manually recreate triggers (can be called via API)
-   */
-  public static function recreateTriggers() {
-    $upgrader = self::instance();
-    $upgrader->createTriggers();
-    return ['status' => 'success', 'message' => 'Triggers recreated successfully'];
-  }
-
-  /**
-   * Called during disable.
-   */
-  public function disable() {
-    // Rebuild triggers without our extension (this will remove our triggers)
-    CRM_Core_DAO::triggerRebuild();
-  }
-
-  /**
-   * Create database triggers for address history tracking.
-   */
-  public function createTriggers() {
-    // Drop existing triggers first
-    $this->dropTriggers();
-    
-    // Log that we're creating triggers
-    CRM_Core_Error::debug_log_message('Address History: Starting trigger creation');
-    
-    // Create triggers manually (more reliable than parsing SQL file)
-    try {
-      $this->createTriggersManually();
-      CRM_Core_Error::debug_log_message('Address History: Triggers created successfully');
-    } catch (Exception $e) {
-      CRM_Core_Error::debug_log_message('Address History: Trigger creation failed - ' . $e->getMessage());
-      throw $e;
-    }
-  }
-
-  /**
-   * Create triggers manually if SQL file is not available.
-   */
-  private function createTriggersManually() {
-    try {
-      // Create INSERT trigger
-      CRM_Core_DAO::executeQuery("
-        CREATE TRIGGER civicrm_address_history_after_insert 
-        AFTER INSERT ON civicrm_address
-        FOR EACH ROW 
-        BEGIN
-            IF NEW.contact_id IS NOT NULL THEN
-                IF NEW.is_primary = 1 AND NEW.location_type_id IS NOT NULL THEN
-                    UPDATE civicrm_address_history 
-                    SET end_date = NOW() 
-                    WHERE contact_id = NEW.contact_id 
-                    AND location_type_id = NEW.location_type_id 
-                    AND is_primary = 1 
-                    AND (end_date IS NULL OR end_date > NOW());
-                END IF;
-                
-                INSERT INTO civicrm_address_history (
-                    contact_id, location_type_id, is_primary, is_billing,
-                    street_address, supplemental_address_1, supplemental_address_2,
-                    city, state_province_id, postal_code, country_id,
-                    start_date, original_address_id, created_date
-                ) VALUES (
-                    NEW.contact_id, NEW.location_type_id, NEW.is_primary, NEW.is_billing,
-                    NEW.street_address, NEW.supplemental_address_1, NEW.supplemental_address_2,
-                    NEW.city, NEW.state_province_id, NEW.postal_code, NEW.country_id,
-                    NOW(), NEW.id, NOW()
-                );
-            END IF;
-        END
-      ");
-
-      // Create UPDATE trigger  
-      CRM_Core_DAO::executeQuery("
-        CREATE TRIGGER civicrm_address_history_after_update 
-        AFTER UPDATE ON civicrm_address
-        FOR EACH ROW 
-        BEGIN
-            DECLARE significant_change BOOLEAN DEFAULT FALSE;
-            DECLARE current_history_id INT DEFAULT NULL;
-            
-            IF NEW.contact_id IS NOT NULL THEN
-                SET significant_change = (
-                    IFNULL(OLD.street_address, '') != IFNULL(NEW.street_address, '') OR
-                    IFNULL(OLD.city, '') != IFNULL(NEW.city, '') OR
-                    IFNULL(OLD.postal_code, '') != IFNULL(NEW.postal_code, '') OR
-                    IFNULL(OLD.state_province_id, 0) != IFNULL(NEW.state_province_id, 0) OR
-                    IFNULL(OLD.country_id, 0) != IFNULL(NEW.country_id, 0) OR
-                    IFNULL(OLD.location_type_id, 0) != IFNULL(NEW.location_type_id, 0) OR
-                    IFNULL(OLD.is_primary, 0) != IFNULL(NEW.is_primary, 0)
-                );
-                
-                SELECT id INTO current_history_id 
-                FROM civicrm_address_history 
-                WHERE original_address_id = NEW.id 
-                AND (end_date IS NULL OR end_date > NOW())
-                ORDER BY start_date DESC 
-                LIMIT 1;
-                
-                IF significant_change THEN
-                    IF current_history_id IS NOT NULL THEN
-                        UPDATE civicrm_address_history 
-                        SET end_date = NOW() 
-                        WHERE id = current_history_id;
-                    END IF;
-                    
-                    IF NEW.is_primary = 1 AND NEW.location_type_id IS NOT NULL THEN
-                        UPDATE civicrm_address_history 
-                        SET end_date = NOW() 
-                        WHERE contact_id = NEW.contact_id 
-                        AND location_type_id = NEW.location_type_id 
-                        AND is_primary = 1 
-                        AND id != IFNULL(current_history_id, 0)
-                        AND (end_date IS NULL OR end_date > NOW());
-                    END IF;
-                    
-                    INSERT INTO civicrm_address_history (
-                        contact_id, location_type_id, is_primary, is_billing,
-                        street_address, supplemental_address_1, supplemental_address_2,
-                        city, state_province_id, postal_code, country_id,
-                        start_date, original_address_id, created_date
-                    ) VALUES (
-                        NEW.contact_id, NEW.location_type_id, NEW.is_primary, NEW.is_billing,
-                        NEW.street_address, NEW.supplemental_address_1, NEW.supplemental_address_2,
-                        NEW.city, NEW.state_province_id, NEW.postal_code, NEW.country_id,
-                        NOW(), NEW.id, NOW()
-                    );
-                ELSE
-                    IF current_history_id IS NOT NULL THEN
-                        UPDATE civicrm_address_history SET
-                            location_type_id = NEW.location_type_id,
-                            is_primary = NEW.is_primary,
-                            is_billing = NEW.is_billing,
-                            street_address = NEW.street_address,
-                            supplemental_address_1 = NEW.supplemental_address_1,
-                            supplemental_address_2 = NEW.supplemental_address_2,
-                            city = NEW.city,
-                            state_province_id = NEW.state_province_id,
-                            postal_code = NEW.postal_code,
-                            country_id = NEW.country_id,
-                            modified_date = NOW()
-                        WHERE id = current_history_id;
-                    END IF;
-                END IF;
-            END IF;
-        END
-      ");
-
-      // Create DELETE trigger
-      CRM_Core_DAO::executeQuery("
-        CREATE TRIGGER civicrm_address_history_after_delete 
-        AFTER DELETE ON civicrm_address
-        FOR EACH ROW 
-        BEGIN
-            IF OLD.contact_id IS NOT NULL THEN
-                UPDATE civicrm_address_history 
-                SET end_date = NOW() 
-                WHERE original_address_id = OLD.id 
-                AND (end_date IS NULL OR end_date > NOW());
-            END IF;
-        END
-      ");
-      
-    } catch (Exception $e) {
-      CRM_Core_Error::debug_log_message('Manual Trigger Creation Error: ' . $e->getMessage());
-      throw $e;
-    }
-  }
-
-  /**
-   * Drop database triggers.
-   */
-  public function dropTriggers() {
-    $triggers = [
-      'civicrm_address_history_after_insert',
-      'civicrm_address_history_after_update',
-      'civicrm_address_history_after_delete'
-    ];
-    
-    foreach ($triggers as $trigger) {
-      try {
-        CRM_Core_DAO::executeQuery("DROP TRIGGER IF EXISTS {$trigger}");
-      } catch (Exception $e) {
-        // Ignore errors when dropping triggers
-        CRM_Core_Error::debug_log_message("Could not drop trigger {$trigger}: " . $e->getMessage());
-      }
-    }
-  }
-
-  /**
-   * Append navigation menu items (required by civix).
-   */
-  public function appendNavigationMenu(&$menu) {
-    // We don't need to add any navigation menu items
-    // This method exists to prevent civix from breaking
+  } catch (Exception $e) {
+    // If we can't check the status, assume Contact Layout Editor isn't available
+    CRM_Core_Error::debug_log_message("Could not check CiviCRM Contact Layout Editor status: " . $e->getMessage());
     return;
   }
+  
+  $tabs['address_history'] = [
+    'id' => 'address_history',
+    'title' => E::ts('Address History'),
+    'weight' => 300,
+    'icon' => 'fa-history',
+    'is_active' => TRUE,
+  ];
+  
+  CRM_Core_Error::debug_log_message("Address History tab registered with CiviCRM Contact Layout Editor");
+}
+
+/**
+ * Implements hook_civicrm_tabset().
+ */
+function addresshistory_civicrm_tabset($tabsetName, &$tabs, $context) {
+  // Temporarily disable to isolate the issue
+  return;
+  
+  // DEBUG: Log what's being called
+  CRM_Core_Error::debug_log_message("Tabset called - Name: {$tabsetName}, Context: " . print_r($context, true));
+  
+  // Only add tab to contact view pages and only if we have a valid contact ID
+  if ($tabsetName !== 'civicrm/contact/view' || empty($context['contact_id'])) {
+    return;
+  }
+  
+  $contactId = $context['contact_id'];
+  
+  // Validate contact ID and permissions
+  if (!is_numeric($contactId) || $contactId <= 0) {
+    return;
+  }
+  
+  if (!CRM_Contact_BAO_Contact_Permission::allow($contactId)) {
+    return;
+  }
+  
+  // Get count safely
+  $count = 0;
+  try {
+    $count = CRM_Addresshistory_BAO_AddressHistory::getAddressHistoryCount($contactId);
+  } catch (Exception $e) {
+    CRM_Core_Error::debug_log_message('Address History Tab Count Error: ' . $e->getMessage());
+    // Continue with count = 0
+  }
+  
+  // Add the tab
+  $tabs['address_history'] = [
+    'id' => 'address_history',
+    'url' => CRM_Utils_System::url('civicrm/contact/view/address-history', [
+      'cid' => $contactId,
+      'reset' => 1,
+    ]),
+    'title' => E::ts('Address History'),
+    'weight' => 300,
+    'count' => $count,
+    'class' => 'livePage',
+  ];
+}
+
+/**
+ * Implements hook_civicrm_merge().
+ */
+function addresshistory_civicrm_merge($type, &$data, $mainId = NULL, $otherId = NULL, $tables = NULL) {
+  if ($type == 'batch' && $mainId && $otherId) {
+    try {
+      CRM_Addresshistory_BAO_AddressHistory::mergeAddressHistory($mainId, $otherId);
+    } catch (Exception $e) {
+      CRM_Core_Error::debug_log_message('Address History Merge Error: ' . $e->getMessage());
+    }
+  }
+}
+
+/**
+ * Implements hook_civicrm_triggerInfo().
+ * 
+ * This makes our triggers part of CiviCRM's trigger rebuild system.
+ */
+function addresshistory_civicrm_triggerInfo(&$info, $tableName = NULL) {
+  // Only add our triggers if we're looking at all tables or specifically the address table
+  if ($tableName === NULL || $tableName === 'civicrm_address') {
+    
+    // Define our custom triggers - simplified to avoid DECLARE issues
+    $info[] = [
+      'table' => 'civicrm_address',
+      'when' => 'AFTER',
+      'event' => 'INSERT',
+      'sql' => "
+        IF NEW.contact_id IS NOT NULL THEN
+          INSERT INTO civicrm_address_history (
+            contact_id, location_type_id, is_primary, is_billing,
+            street_address, supplemental_address_1, supplemental_address_2,
+            city, state_province_id, postal_code, country_id,
+            start_date, original_address_id, created_date
+          ) VALUES (
+            NEW.contact_id, NEW.location_type_id, NEW.is_primary, NEW.is_billing,
+            NEW.street_address, NEW.supplemental_address_1, NEW.supplemental_address_2,
+            NEW.city, NEW.state_province_id, NEW.postal_code, NEW.country_id,
+            NOW(), NEW.id, NOW()
+          );
+        END IF;
+      ",
+    ];
+
+    $info[] = [
+      'table' => 'civicrm_address',
+      'when' => 'AFTER', 
+      'event' => 'UPDATE',
+      'sql' => "
+        IF NEW.contact_id IS NOT NULL THEN
+          IF (IFNULL(OLD.street_address, '') != IFNULL(NEW.street_address, '') OR
+              IFNULL(OLD.city, '') != IFNULL(NEW.city, '') OR
+              IFNULL(OLD.postal_code, '') != IFNULL(NEW.postal_code, '') OR
+              IFNULL(OLD.state_province_id, 0) != IFNULL(NEW.state_province_id, 0) OR
+              IFNULL(OLD.country_id, 0) != IFNULL(NEW.country_id, 0) OR
+              IFNULL(OLD.location_type_id, 0) != IFNULL(NEW.location_type_id, 0) OR
+              IFNULL(OLD.is_primary, 0) != IFNULL(NEW.is_primary, 0)) THEN
+            
+            UPDATE civicrm_address_history 
+            SET end_date = NOW() 
+            WHERE original_address_id = NEW.id 
+            AND (end_date IS NULL OR end_date > NOW());
+            
+            INSERT INTO civicrm_address_history (
+              contact_id, location_type_id, is_primary, is_billing,
+              street_address, supplemental_address_1, supplemental_address_2,
+              city, state_province_id, postal_code, country_id,
+              start_date, original_address_id, created_date
+            ) VALUES (
+              NEW.contact_id, NEW.location_type_id, NEW.is_primary, NEW.is_billing,
+              NEW.street_address, NEW.supplemental_address_1, NEW.supplemental_address_2,
+              NEW.city, NEW.state_province_id, NEW.postal_code, NEW.country_id,
+              NOW(), NEW.id, NOW()
+            );
+          ELSE
+            UPDATE civicrm_address_history SET
+              location_type_id = NEW.location_type_id,
+              is_primary = NEW.is_primary,
+              is_billing = NEW.is_billing,
+              street_address = NEW.street_address,
+              supplemental_address_1 = NEW.supplemental_address_1,
+              supplemental_address_2 = NEW.supplemental_address_2,
+              city = NEW.city,
+              state_province_id = NEW.state_province_id,
+              postal_code = NEW.postal_code,
+              country_id = NEW.country_id,
+              modified_date = NOW()
+            WHERE original_address_id = NEW.id 
+            AND (end_date IS NULL OR end_date > NOW());
+          END IF;
+        END IF;
+      ",
+    ];
+
+    $info[] = [
+      'table' => 'civicrm_address',
+      'when' => 'AFTER',
+      'event' => 'DELETE', 
+      'sql' => "
+        IF OLD.contact_id IS NOT NULL THEN
+          UPDATE civicrm_address_history 
+          SET end_date = NOW() 
+          WHERE original_address_id = OLD.id 
+          AND (end_date IS NULL OR end_date > NOW());
+        END IF;
+      ",
+    ];
+  }
+}
+
+/**
+ * Implements hook_civicrm_navigationMenu().
+ */
+function addresshistory_civicrm_navigationMenu(&$menu) {
+  // Re-enabled with safety method in upgrader
+  _addresshistory_civix_civicrm_navigationMenu($menu);
 }
