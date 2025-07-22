@@ -165,7 +165,7 @@ function addresshistory_civicrm_triggerInfo(&$info, $tableName = NULL) {
   // Only add our triggers if we're looking at all tables or specifically the address table
   if ($tableName === NULL || $tableName === 'civicrm_address') {
     
-    // Define our custom triggers
+    // Define our custom triggers - simplified to avoid DECLARE issues
     $info[] = [
       'table' => 'civicrm_address',
       'when' => 'AFTER',
@@ -192,33 +192,19 @@ function addresshistory_civicrm_triggerInfo(&$info, $tableName = NULL) {
       'when' => 'AFTER', 
       'event' => 'UPDATE',
       'sql' => "
-        DECLARE significant_change BOOLEAN DEFAULT FALSE;
-        DECLARE current_history_id INT DEFAULT NULL;
-        
         IF NEW.contact_id IS NOT NULL THEN
-          SET significant_change = (
-            IFNULL(OLD.street_address, '') != IFNULL(NEW.street_address, '') OR
-            IFNULL(OLD.city, '') != IFNULL(NEW.city, '') OR
-            IFNULL(OLD.postal_code, '') != IFNULL(NEW.postal_code, '') OR
-            IFNULL(OLD.state_province_id, 0) != IFNULL(NEW.state_province_id, 0) OR
-            IFNULL(OLD.country_id, 0) != IFNULL(NEW.country_id, 0) OR
-            IFNULL(OLD.location_type_id, 0) != IFNULL(NEW.location_type_id, 0) OR
-            IFNULL(OLD.is_primary, 0) != IFNULL(NEW.is_primary, 0)
-          );
-          
-          SELECT id INTO current_history_id 
-          FROM civicrm_address_history 
-          WHERE original_address_id = NEW.id 
-          AND (end_date IS NULL OR end_date > NOW())
-          ORDER BY start_date DESC 
-          LIMIT 1;
-          
-          IF significant_change THEN
-            IF current_history_id IS NOT NULL THEN
-              UPDATE civicrm_address_history 
-              SET end_date = NOW() 
-              WHERE id = current_history_id;
-            END IF;
+          IF (IFNULL(OLD.street_address, '') != IFNULL(NEW.street_address, '') OR
+              IFNULL(OLD.city, '') != IFNULL(NEW.city, '') OR
+              IFNULL(OLD.postal_code, '') != IFNULL(NEW.postal_code, '') OR
+              IFNULL(OLD.state_province_id, 0) != IFNULL(NEW.state_province_id, 0) OR
+              IFNULL(OLD.country_id, 0) != IFNULL(NEW.country_id, 0) OR
+              IFNULL(OLD.location_type_id, 0) != IFNULL(NEW.location_type_id, 0) OR
+              IFNULL(OLD.is_primary, 0) != IFNULL(NEW.is_primary, 0)) THEN
+            
+            UPDATE civicrm_address_history 
+            SET end_date = NOW() 
+            WHERE original_address_id = NEW.id 
+            AND (end_date IS NULL OR end_date > NOW());
             
             INSERT INTO civicrm_address_history (
               contact_id, location_type_id, is_primary, is_billing,
@@ -232,21 +218,20 @@ function addresshistory_civicrm_triggerInfo(&$info, $tableName = NULL) {
               NOW(), NEW.id, NOW()
             );
           ELSE
-            IF current_history_id IS NOT NULL THEN
-              UPDATE civicrm_address_history SET
-                location_type_id = NEW.location_type_id,
-                is_primary = NEW.is_primary,
-                is_billing = NEW.is_billing,
-                street_address = NEW.street_address,
-                supplemental_address_1 = NEW.supplemental_address_1,
-                supplemental_address_2 = NEW.supplemental_address_2,
-                city = NEW.city,
-                state_province_id = NEW.state_province_id,
-                postal_code = NEW.postal_code,
-                country_id = NEW.country_id,
-                modified_date = NOW()
-              WHERE id = current_history_id;
-            END IF;
+            UPDATE civicrm_address_history SET
+              location_type_id = NEW.location_type_id,
+              is_primary = NEW.is_primary,
+              is_billing = NEW.is_billing,
+              street_address = NEW.street_address,
+              supplemental_address_1 = NEW.supplemental_address_1,
+              supplemental_address_2 = NEW.supplemental_address_2,
+              city = NEW.city,
+              state_province_id = NEW.state_province_id,
+              postal_code = NEW.postal_code,
+              country_id = NEW.country_id,
+              modified_date = NOW()
+            WHERE original_address_id = NEW.id 
+            AND (end_date IS NULL OR end_date > NOW());
           END IF;
         END IF;
       ",
