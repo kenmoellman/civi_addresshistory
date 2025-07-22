@@ -247,10 +247,14 @@ function addresshistory_civicrm_buildForm($formName, &$form) {
     $cid = $form->getVar('_cid');
     $oid = $form->getVar('_oid');
     
+    CRM_Core_Error::debug_log_message("Address History buildForm - Merge form detected. CID: {$cid}, OID: {$oid}");
+    
     if ($cid && $oid) {
       // Get address history counts for both contacts
       $mainCount = CRM_Addresshistory_BAO_AddressHistory::getAddressHistoryCount($cid);
       $otherCount = CRM_Addresshistory_BAO_AddressHistory::getAddressHistoryCount($oid);
+      
+      CRM_Core_Error::debug_log_message("Address History buildForm - Main contact: {$mainCount} records, Other contact: {$otherCount} records");
       
       // Only show if there are address history records
       if ($mainCount > 0 || $otherCount > 0) {
@@ -394,6 +398,44 @@ function addresshistory_civicrm_buildForm($formName, &$form) {
 }
 
 /**
+ * Implements hook_civicrm_postProcess().
+ * 
+ * This hook is called after form processing and might catch the merge.
+ */
+function addresshistory_civicrm_postProcess($formName, &$form) {
+  if ($formName == 'CRM_Contact_Form_Merge') {
+    $cid = $form->getVar('_cid');
+    $oid = $form->getVar('_oid');
+    
+    CRM_Core_Error::debug_log_message("Address History postProcess - Merge form processed. CID: {$cid}, OID: {$oid}");
+    
+    if ($cid && $oid) {
+      // Get the selected action
+      $action = 'move'; // Default
+      if (!empty($_POST['_address_history_action'])) {
+        $action = $_POST['_address_history_action'];
+      } elseif (!empty($_REQUEST['_address_history_action'])) {
+        $action = $_REQUEST['_address_history_action'];
+      }
+      
+      CRM_Core_Error::debug_log_message("Address History postProcess - Action: {$action}");
+      
+      // Check if other contact still exists and has address history
+      try {
+        $otherCount = CRM_Addresshistory_BAO_AddressHistory::getAddressHistoryCount($oid);
+        CRM_Core_Error::debug_log_message("Address History postProcess - Other contact has {$otherCount} records");
+        
+        if ($otherCount > 0) {
+          CRM_Addresshistory_BAO_AddressHistory::mergeAddressHistory($cid, $oid, ['action' => $action]);
+        }
+      } catch (Exception $e) {
+        CRM_Core_Error::debug_log_message("Address History postProcess - Error: " . $e->getMessage());
+      }
+    }
+  }
+}
+
+/**
  * Enhanced merge processing - captures the user's choice
  */
 function addresshistory_civicrm_merge($type, &$data, $mainId = NULL, $otherId = NULL, $tables = NULL) {
@@ -472,6 +514,77 @@ function addresshistory_civicrm_postMerge($mainId, $otherId, $data) {
     
   } catch (Exception $e) {
     CRM_Core_Error::debug_log_message('Address History postMerge Error: ' . $e->getMessage());
+  }
+}
+
+/**
+ * Implements hook_civicrm_pre().
+ * 
+ * This hook is called before any database operation and can catch contact deletions during merge.
+ */
+function addresshistory_civicrm_pre($op, $objectName, $id, &$params) {
+  // Log all contact operations for debugging
+  if ($objectName == 'Contact') {
+    CRM_Core_Error::debug_log_message("Address History pre Hook - Operation: {$op}, Contact ID: {$id}");
+  }
+  
+  // If a contact is being deleted, this might be part of a merge
+  if ($op == 'delete' && $objectName == 'Contact' && $id) {
+    // Check if this contact has address history
+    $addressHistoryCount = CRM_Addresshistory_BAO_AddressHistory::getAddressHistoryCount($id);
+    
+    if ($addressHistoryCount > 0) {
+      CRM_Core_Error::debug_log_message("Address History pre Hook - Contact {$id} being deleted has {$addressHistoryCount} address history records");
+      
+      // Try to determine if this is part of a merge by checking session or request data
+      $isPartOfMerge = false;
+      $mainContactId = null;
+      
+      // Check for merge indicators in the request
+      if (!empty($_REQUEST['cid']) && !empty($_REQUEST['oid'])) {
+        $mainContactId = $_REQUEST['cid'];
+        $otherContactId = $_REQUEST['oid'];
+        
+        if ($id == $otherContactId) {
+          $isPartOfMerge = true;
+          CRM_Core_Error::debug_log_message("Address History pre Hook - This appears to be a merge. Main contact: {$mainContactId}, Other contact: {$id}");
+        }
+      }
+      
+      // Also check POST data for merge form submission
+      if (!$isPartOfMerge && !empty($_POST['_qf_Merge_submit'])) {
+        // This looks like a merge form submission
+        if (!empty($_POST['cid']) && !empty($_POST['oid'])) {
+          $mainContactId = $_POST['cid'];
+          $otherContactId = $_POST['oid'];
+          
+          if ($id == $otherContactId) {
+            $isPartOfMerge = true;
+            CRM_Core_Error::debug_log_message("Address History pre Hook - Merge detected via POST. Main contact: {$mainContactId}, Other contact: {$id}");
+          }
+        }
+      }
+      
+      if ($isPartOfMerge && $mainContactId) {
+        // Get the selected action
+        $action = 'move'; // Default
+        if (!empty($_POST['_address_history_action'])) {
+          $action = $_POST['_address_history_action'];
+        } elseif (!empty($_REQUEST['_address_history_action'])) {
+          $action = $_REQUEST['_address_history_action'];
+        }
+        
+        CRM_Core_Error::debug_log_message("Address History pre Hook - Performing {$action} action before contact deletion");
+        
+        try {
+          CRM_Addresshistory_BAO_AddressHistory::mergeAddressHistory($mainContactId, $id, ['action' => $action]);
+        } catch (Exception $e) {
+          CRM_Core_Error::debug_log_message("Address History pre Hook - Error during merge: " . $e->getMessage());
+        }
+      } else {
+        CRM_Core_Error::debug_log_message("Address History pre Hook - Contact deletion not part of merge, address history will be deleted");
+      }
+    }
   }
 }
 
