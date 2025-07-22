@@ -67,27 +67,6 @@ function addresshistory_civicrm_managed(&$entities) {
 }
 
 /**
- * Implements hook_civicrm_caseTypes().
- */
-function addresshistory_civicrm_caseTypes(&$caseTypes) {
-  _addresshistory_civix_civicrm_caseTypes($caseTypes);
-}
-
-/**
- * Implements hook_civicrm_angularModules().
- */
-function addresshistory_civicrm_angularModules(&$angularModules) {
-  _addresshistory_civix_civicrm_angularModules($angularModules);
-}
-
-/**
- * Implements hook_civicrm_alterSettingsFolders().
- */
-function addresshistory_civicrm_alterSettingsFolders(&$metaDataFolders = NULL) {
-  _addresshistory_civix_civicrm_alterSettingsFolders($metaDataFolders);
-}
-
-/**
  * Implements hook_civicrm_entityTypes().
  */
 function addresshistory_civicrm_entityTypes(&$entityTypes) {
@@ -95,108 +74,13 @@ function addresshistory_civicrm_entityTypes(&$entityTypes) {
 }
 
 /**
- * Implements hook_civicrm_contactSummaryTabs().
- * This hook is used by Contact Layout Editor to detect available tabs.
- */
-function addresshistory_civicrm_contactSummaryTabs(&$tabs) {
-  // Only register with Contact Layout Editor if it's actually enabled
-  try {
-    $manager = CRM_Extension_System::singleton()->getManager();
-    $status = $manager->getStatus('org.civicrm.contactlayout');
-    
-    if ($status !== CRM_Extension_Manager::STATUS_INSTALLED) {
-      CRM_Core_Error::debug_log_message("CiviCRM Contact Layout Editor not enabled, skipping contactSummaryTabs hook");
-      return;
-    }
-  } catch (Exception $e) {
-    // If we can't check the status, assume Contact Layout Editor isn't available
-    CRM_Core_Error::debug_log_message("Could not check CiviCRM Contact Layout Editor status: " . $e->getMessage());
-    return;
-  }
-  
-  $tabs['address_history'] = [
-    'id' => 'address_history',
-    'title' => E::ts('Address History'),
-    'weight' => 300,
-    'icon' => 'fa-history',
-    'is_active' => TRUE,
-  ];
-  
-  CRM_Core_Error::debug_log_message("Address History tab registered with CiviCRM Contact Layout Editor");
-}
-
-/**
- * Implements hook_civicrm_tabset().
- */
-function addresshistory_civicrm_tabset($tabsetName, &$tabs, $context) {
-  // Temporarily disable to isolate the issue
-  return;
-  
-  // DEBUG: Log what's being called
-  CRM_Core_Error::debug_log_message("Tabset called - Name: {$tabsetName}, Context: " . print_r($context, true));
-  
-  // Only add tab to contact view pages and only if we have a valid contact ID
-  if ($tabsetName !== 'civicrm/contact/view' || empty($context['contact_id'])) {
-    return;
-  }
-  
-  $contactId = $context['contact_id'];
-  
-  // Validate contact ID and permissions
-  if (!is_numeric($contactId) || $contactId <= 0) {
-    return;
-  }
-  
-  if (!CRM_Contact_BAO_Contact_Permission::allow($contactId)) {
-    return;
-  }
-  
-  // Get count safely
-  $count = 0;
-  try {
-    $count = CRM_Addresshistory_BAO_AddressHistory::getAddressHistoryCount($contactId);
-  } catch (Exception $e) {
-    CRM_Core_Error::debug_log_message('Address History Tab Count Error: ' . $e->getMessage());
-    // Continue with count = 0
-  }
-  
-  // Add the tab
-  $tabs['address_history'] = [
-    'id' => 'address_history',
-    'url' => CRM_Utils_System::url('civicrm/contact/view/address-history', [
-      'cid' => $contactId,
-      'reset' => 1,
-    ]),
-    'title' => E::ts('Address History'),
-    'weight' => 300,
-    'count' => $count,
-    'class' => 'livePage',
-  ];
-}
-
-/**
- * Implements hook_civicrm_merge().
- */
-function addresshistory_civicrm_merge($type, &$data, $mainId = NULL, $otherId = NULL, $tables = NULL) {
-  if ($type == 'batch' && $mainId && $otherId) {
-    try {
-      CRM_Addresshistory_BAO_AddressHistory::mergeAddressHistory($mainId, $otherId);
-    } catch (Exception $e) {
-      CRM_Core_Error::debug_log_message('Address History Merge Error: ' . $e->getMessage());
-    }
-  }
-}
-
-/**
  * Implements hook_civicrm_triggerInfo().
- * 
- * This makes our triggers part of CiviCRM's trigger rebuild system.
  */
 function addresshistory_civicrm_triggerInfo(&$info, $tableName = NULL) {
   // Only add our triggers if we're looking at all tables or specifically the address table
   if ($tableName === NULL || $tableName === 'civicrm_address') {
     
-    // Define our custom triggers - simplified to avoid DECLARE issues
+    // INSERT trigger
     $info[] = [
       'table' => 'civicrm_address',
       'when' => 'AFTER',
@@ -218,6 +102,7 @@ function addresshistory_civicrm_triggerInfo(&$info, $tableName = NULL) {
       ",
     ];
 
+    // UPDATE trigger
     $info[] = [
       'table' => 'civicrm_address',
       'when' => 'AFTER', 
@@ -268,6 +153,7 @@ function addresshistory_civicrm_triggerInfo(&$info, $tableName = NULL) {
       ",
     ];
 
+    // DELETE trigger
     $info[] = [
       'table' => 'civicrm_address',
       'when' => 'AFTER',
@@ -285,9 +171,87 @@ function addresshistory_civicrm_triggerInfo(&$info, $tableName = NULL) {
 }
 
 /**
+ * Implements hook_civicrm_tabset().
+ */
+function addresshistory_civicrm_tabset($tabsetName, &$tabs, $context) {
+  // Only add tab to contact view pages and only if we have a valid contact ID
+  if ($tabsetName !== 'civicrm/contact/view' || empty($context['contact_id'])) {
+    return;
+  }
+  
+  $contactId = $context['contact_id'];
+  
+  // Validate contact ID and permissions
+  if (!is_numeric($contactId) || $contactId <= 0 || !CRM_Contact_BAO_Contact_Permission::allow($contactId)) {
+    return;
+  }
+  
+  // Get count safely
+  $count = 0;
+  try {
+    $count = CRM_Addresshistory_BAO_AddressHistory::getAddressHistoryCount($contactId);
+  } catch (Exception $e) {
+    // Continue with count = 0
+  }
+  
+  // Add the tab
+  $tabs['address_history'] = [
+    'id' => 'address_history',
+    'url' => CRM_Utils_System::url('civicrm/contact/view/address-history', [
+      'cid' => $contactId,
+      'reset' => 1,
+    ]),
+    'title' => E::ts('Address History'),
+    'weight' => 300,
+    'count' => $count,
+    'class' => 'livePage',
+  ];
+}
+
+/**
+ * Implements hook_civicrm_contactSummaryTabs().
+ */
+function addresshistory_civicrm_contactSummaryTabs(&$tabs) {
+  // Check if Contact Layout Editor is enabled
+  try {
+    $manager = CRM_Extension_System::singleton()->getManager();
+    $hasContactLayoutEditor = (
+      $manager->getStatus('org.civicrm.contactlayout') === CRM_Extension_Manager::STATUS_INSTALLED ||
+      $manager->getStatus('uk.co.vedaconsulting.contactlayout') === CRM_Extension_Manager::STATUS_INSTALLED
+    );
+    
+    if (!$hasContactLayoutEditor) {
+      return;
+    }
+  } catch (Exception $e) {
+    return;
+  }
+  
+  $tabs['address_history'] = [
+    'id' => 'address_history',
+    'title' => E::ts('Address History'),
+    'weight' => 300,
+    'icon' => 'fa-history',
+    'is_active' => TRUE,
+  ];
+}
+
+/**
+ * Implements hook_civicrm_merge().
+ */
+function addresshistory_civicrm_merge($type, &$data, $mainId = NULL, $otherId = NULL, $tables = NULL) {
+  if ($type == 'batch' && $mainId && $otherId) {
+    try {
+      CRM_Addresshistory_BAO_AddressHistory::mergeAddressHistory($mainId, $otherId);
+    } catch (Exception $e) {
+      CRM_Core_Error::debug_log_message('Address History Merge Error: ' . $e->getMessage());
+    }
+  }
+}
+
+/**
  * Implements hook_civicrm_navigationMenu().
  */
 function addresshistory_civicrm_navigationMenu(&$menu) {
-  // Re-enabled with safety method in upgrader
   _addresshistory_civix_civicrm_navigationMenu($menu);
 }
