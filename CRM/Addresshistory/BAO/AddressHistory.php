@@ -57,23 +57,23 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
     return CRM_Core_DAO::singleValueQuery($query, [1 => [$contactId, 'Integer']]);
   }
 
-  /**
-   * Merge address history during contact merge.
-   *
-   * @param int $mainId
-   * @param int $otherId
-   */
-  public static function mergeAddressHistory($mainId, $otherId) {
-    // Update all address history records from the duplicate contact
-    CRM_Core_DAO::executeQuery("
-      UPDATE civicrm_address_history 
-      SET contact_id = %1 
-      WHERE contact_id = %2
-    ", [
-      1 => [$mainId, 'Integer'],
-      2 => [$otherId, 'Integer']
-    ]);
-  }
+//  /**
+//   * Merge address history during contact merge.
+//   *
+//   * @param int $mainId
+//   * @param int $otherId
+//   */
+//  public static function mergeAddressHistory($mainId, $otherId) {
+//    // Update all address history records from the duplicate contact
+//    CRM_Core_DAO::executeQuery("
+//      UPDATE civicrm_address_history 
+//      SET contact_id = %1 
+//      WHERE contact_id = %2
+//    ", [
+//      1 => [$mainId, 'Integer'],
+//      2 => [$otherId, 'Integer']
+//    ]);
+//  }
 
   /**
    * Get formatted address history for display.
@@ -264,8 +264,7 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
     return TRUE;
   }
 
-/**
-   * Enhanced merge address history during contact merge.
+/** Enhanced merge address history during contact merge.
    *
    * @param int $mainId Main contact ID (keeping this one)
    * @param int $otherId Other contact ID (deleting this one)
@@ -397,5 +396,5 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
       'other_count' => $otherCount,
       'total_after_merge' => $mainCount + $otherCount,
     ];
-  }  
+  }
 }
