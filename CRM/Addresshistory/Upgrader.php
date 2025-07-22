@@ -59,7 +59,8 @@ class CRM_Addresshistory_Upgrader extends CRM_Addresshistory_Upgrader_Base {
    * Called during disable.
    */
   public function disable() {
-    $this->dropTriggers();
+    // Rebuild triggers without our extension (this will remove our triggers)
+    CRM_Core_DAO::triggerRebuild();
   }
 
   /**
