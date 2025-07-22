@@ -1,10 +1,36 @@
 {* File: templates/CRM/Addresshistory/Form/EditHistory.tpl *}
-$cfg['Servers'][$i][
 
 <div class="crm-content-block">
   <div id="help">
     <p>{ts}Edit the start and end dates for this address history record.{/ts}</p>
-    <p><strong>{ts}Address:{/ts}</strong> {$addressSummary}</p>
+    
+    <div class="crm-section address-summary-section">
+      <div class="label"><strong>{ts}Location Type:{/ts}</strong></div>
+      <div class="content">{$locationTypeName}</div>
+      <div class="clear"></div>
+    </div>
+    
+    <div class="crm-section address-summary-section">
+      <div class="label"><strong>{ts}Address:{/ts}</strong></div>
+      <div class="content">{$addressSummary}</div>
+      <div class="clear"></div>
+    </div>
+    
+    <div class="crm-section address-summary-section">
+      <div class="label"><strong>{ts}Primary Address:{/ts}</strong></div>
+      <div class="content">
+        {if $isPrimary}
+          <span class="crm-marker crm-marker-primary">
+            <i class="crm-i fa-check-circle"></i> {ts}Yes{/ts}
+          </span>
+        {else}
+          <span class="crm-marker crm-marker-secondary">
+            <i class="crm-i fa-circle-o"></i> {ts}No{/ts}
+          </span>
+        {/if}
+      </div>
+      <div class="clear"></div>
+    </div>
   </div>
 
   <div class="crm-section">
@@ -35,3 +61,50 @@ $cfg['Servers'][$i][
 <div class="crm-submit-buttons">
   {include file="CRM/common/formButtons.tpl" location="bottom"}
 </div>
+
+{literal}
+<style>
+.address-summary-section {
+  margin-bottom: 10px;
+  padding: 8px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+}
+
+.address-summary-section .label {
+  width: 120px;
+  display: inline-block;
+  vertical-align: top;
+}
+
+.address-summary-section .content {
+  display: inline-block;
+  width: calc(100% - 130px);
+  margin-left: 10px;
+}
+
+.crm-marker {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.crm-marker-primary {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.crm-marker-secondary {
+  background-color: #f8f9fa;
+  color: #6c757d;
+  border: 1px solid #dee2e6;
+}
+
+.crm-marker i {
+  margin-right: 4px;
+}
+</style>
+{/literal}
