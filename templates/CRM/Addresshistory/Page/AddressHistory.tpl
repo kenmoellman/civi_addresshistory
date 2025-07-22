@@ -114,6 +114,7 @@ CRM.$(function($) {
 </script>
 {/literal}
 
+{literal}
 <style>
 .crm-label {
   padding: 2px 6px;
@@ -156,3 +157,4 @@ CRM.$(function($) {
   background-color: #e8f4f8;
 }
 </style>
+{/literal}
