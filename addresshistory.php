@@ -250,6 +250,89 @@ function addresshistory_civicrm_merge($type, &$data, $mainId = NULL, $otherId = 
 }
 
 /**
+ * Implements hook_civicrm_merge_tables().
+ * 
+ * This adds address history to the merge screen with proper UI controls.
+ */
+function addresshistory_civicrm_merge_tables(&$tables) {
+  // Add address history table to the merge configuration
+  $tables['civicrm_address_history'] = [
+    'name' => 'civicrm_address_history',
+    'entity' => 'AddressHistory',
+    'contact_id_column' => 'contact_id',
+    'display_name' => ts('Address History'),
+    'move_title' => ts('Move Address History'),
+    'copy_title' => ts('Copy Address History'),
+    'keep_title' => ts('Keep Address History'),
+    'depends' => [],
+    'move_callback' => ['CRM_Addresshistory_BAO_AddressHistory', 'mergeAddressHistory'],
+    'is_selected' => TRUE, // Default to moving address history
+  ];
+}
+
+/**
+ * Implements hook_civicrm_dupeQuery().
+ * 
+ * Provides data for the merge screen preview.
+ */
+function addresshistory_civicrm_dupeQuery(&$dedupeParams, $mode, $fields, &$options) {
+  // Add address history count to duplicate contact information
+  if (!empty($dedupeParams['contact_id'])) {
+    $contactId = $dedupeParams['contact_id'];
+    $count = CRM_Addresshistory_BAO_AddressHistory::getAddressHistoryCount($contactId);
+    
+    if ($count > 0) {
+      $options['address_history_count'] = $count;
+    }
+  }
+}
+
+/**
+ * Implements hook_civicrm_buildForm().
+ * 
+ * Modifies the merge form to show address history information.
+ */
+function addresshistory_civicrm_buildForm($formName, &$form) {
+  if ($formName == 'CRM_Contact_Form_Merge') {
+    // Get contact IDs from the form
+    $cid = $form->getVar('_cid');
+    $oid = $form->getVar('_oid');
+    
+    if ($cid && $oid) {
+      // Get address history counts for both contacts
+      $mainCount = CRM_Addresshistory_BAO_AddressHistory::getAddressHistoryCount($cid);
+      $otherCount = CRM_Addresshistory_BAO_AddressHistory::getAddressHistoryCount($oid);
+      
+      // Add address history information to the template
+      $form->assign('addressHistoryMainCount', $mainCount);
+      $form->assign('addressHistoryOtherCount', $otherCount);
+      
+      // Add JavaScript to handle address history merge option
+      CRM_Core_Resources::singleton()->addScript("
+        CRM.$(function($) {
+          // Add address history section to merge form
+          if ($('#mergeSummary').length > 0) {
+            var addressHistoryHtml = '<tr class=\"merge-row\">' +
+              '<td><strong>" . ts('Address History') . "</strong></td>' +
+              '<td>" . ts('Main Contact: %1 records', [1 => $mainCount]) . "</td>' +
+              '<td>" . ts('Other Contact: %1 records', [1 => $otherCount]) . "</td>' +
+              '<td>' +
+                '<input type=\"radio\" name=\"address_history_action\" value=\"move\" id=\"address_history_move\" checked> ' +
+                '<label for=\"address_history_move\">" . ts('Move to main contact') . "</label><br>' +
+                '<input type=\"radio\" name=\"address_history_action\" value=\"keep\" id=\"address_history_keep\"> ' +
+                '<label for=\"address_history_keep\">" . ts('Keep separate') . "</label>' +
+              '</td>' +
+            '</tr>';
+            
+            $('#mergeSummary tbody').append(addressHistoryHtml);
+          }
+        });
+      ");
+    }
+  }
+}
+
+/**
  * Implements hook_civicrm_navigationMenu().
  */
 function addresshistory_civicrm_navigationMenu(&$menu) {
