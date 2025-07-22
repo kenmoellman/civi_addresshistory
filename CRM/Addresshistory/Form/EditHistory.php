@@ -47,8 +47,10 @@ class CRM_Addresshistory_Form_EditHistory extends CRM_Core_Form {
     $this->add('datepicker', 'start_date', ts('Start Date'), [], TRUE, ['time' => TRUE]);
     $this->add('datepicker', 'end_date', ts('End Date'), [], FALSE, ['time' => TRUE]);
     
-    // Add help text
+    // Assign data to template
     $this->assign('addressSummary', $this->getAddressSummary());
+    $this->assign('locationTypeName', $this->getLocationTypeName());
+    $this->assign('isPrimary', $this->_addressHistory->is_primary);
     
     $this->addButtons([
       [
@@ -181,17 +183,40 @@ class CRM_Addresshistory_Form_EditHistory extends CRM_Core_Form {
       $parts[] = $this->_addressHistory->city;
     }
     if ($this->_addressHistory->state_province_id) {
-      $stateProvince = civicrm_api3('StateProvince', 'getvalue', [
-        'id' => $this->_addressHistory->state_province_id,
-        'return' => 'name',
-      ]);
-      $parts[] = $stateProvince;
+      try {
+        $stateProvince = civicrm_api3('StateProvince', 'getvalue', [
+          'id' => $this->_addressHistory->state_province_id,
+          'return' => 'name',
+        ]);
+        $parts[] = $stateProvince;
+      } catch (Exception $e) {
+        // Skip if state/province not found
+      }
     }
     if ($this->_addressHistory->postal_code) {
       $parts[] = $this->_addressHistory->postal_code;
     }
     
     return implode(', ', $parts);
+  }
+
+  /**
+   * Get the location type name.
+   */
+  private function getLocationTypeName() {
+    if (!$this->_addressHistory->location_type_id) {
+      return ts('(No Location Type)');
+    }
+    
+    try {
+      $locationTypeName = civicrm_api3('LocationType', 'getvalue', [
+        'id' => $this->_addressHistory->location_type_id,
+        'return' => 'display_name',
+      ]);
+      return $locationTypeName;
+    } catch (Exception $e) {
+      return ts('Unknown Location Type (ID: %1)', [1 => $this->_addressHistory->location_type_id]);
+    }
   }
 
 }
