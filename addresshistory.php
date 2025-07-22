@@ -237,60 +237,9 @@ function addresshistory_civicrm_contactSummaryTabs(&$tabs) {
 }
 
 /**
- * Implements hook_civicrm_merge().
- */
-function addresshistory_civicrm_merge($type, &$data, $mainId = NULL, $otherId = NULL, $tables = NULL) {
-  if ($type == 'batch' && $mainId && $otherId) {
-    try {
-      CRM_Addresshistory_BAO_AddressHistory::mergeAddressHistory($mainId, $otherId);
-    } catch (Exception $e) {
-      CRM_Core_Error::debug_log_message('Address History Merge Error: ' . $e->getMessage());
-    }
-  }
-}
-
-/**
- * Implements hook_civicrm_merge_tables().
- * 
- * This adds address history to the merge screen with proper UI controls.
- */
-function addresshistory_civicrm_merge_tables(&$tables) {
-  // Add address history table to the merge configuration
-  $tables['civicrm_address_history'] = [
-    'name' => 'civicrm_address_history',
-    'entity' => 'AddressHistory',
-    'contact_id_column' => 'contact_id',
-    'display_name' => ts('Address History'),
-    'move_title' => ts('Move Address History'),
-    'copy_title' => ts('Copy Address History'),
-    'keep_title' => ts('Keep Address History'),
-    'depends' => [],
-    'move_callback' => ['CRM_Addresshistory_BAO_AddressHistory', 'mergeAddressHistory'],
-    'is_selected' => TRUE, // Default to moving address history
-  ];
-}
-
-/**
- * Implements hook_civicrm_dupeQuery().
- * 
- * Provides data for the merge screen preview.
- */
-function addresshistory_civicrm_dupeQuery(&$dedupeParams, $mode, $fields, &$options) {
-  // Add address history count to duplicate contact information
-  if (!empty($dedupeParams['contact_id'])) {
-    $contactId = $dedupeParams['contact_id'];
-    $count = CRM_Addresshistory_BAO_AddressHistory::getAddressHistoryCount($contactId);
-    
-    if ($count > 0) {
-      $options['address_history_count'] = $count;
-    }
-  }
-}
-
-/**
  * Implements hook_civicrm_buildForm().
  * 
- * Modifies the merge form to show address history information.
+ * Modifies the merge form to show address history information via JavaScript injection.
  */
 function addresshistory_civicrm_buildForm($formName, &$form) {
   if ($formName == 'CRM_Contact_Form_Merge') {
@@ -303,31 +252,154 @@ function addresshistory_civicrm_buildForm($formName, &$form) {
       $mainCount = CRM_Addresshistory_BAO_AddressHistory::getAddressHistoryCount($cid);
       $otherCount = CRM_Addresshistory_BAO_AddressHistory::getAddressHistoryCount($oid);
       
-      // Add address history information to the template
-      $form->assign('addressHistoryMainCount', $mainCount);
-      $form->assign('addressHistoryOtherCount', $otherCount);
-      
-      // Add JavaScript to handle address history merge option
-      CRM_Core_Resources::singleton()->addScript("
-        CRM.$(function($) {
-          // Add address history section to merge form
-          if ($('#mergeSummary').length > 0) {
-            var addressHistoryHtml = '<tr class=\"merge-row\">' +
-              '<td><strong>" . ts('Address History') . "</strong></td>' +
-              '<td>" . ts('Main Contact: %1 records', [1 => $mainCount]) . "</td>' +
-              '<td>" . ts('Other Contact: %1 records', [1 => $otherCount]) . "</td>' +
-              '<td>' +
-                '<input type=\"radio\" name=\"address_history_action\" value=\"move\" id=\"address_history_move\" checked> ' +
-                '<label for=\"address_history_move\">" . ts('Move to main contact') . "</label><br>' +
-                '<input type=\"radio\" name=\"address_history_action\" value=\"keep\" id=\"address_history_keep\"> ' +
-                '<label for=\"address_history_keep\">" . ts('Keep separate') . "</label>' +
-              '</td>' +
-            '</tr>';
-            
-            $('#mergeSummary tbody').append(addressHistoryHtml);
+      // Only show if there are address history records
+      if ($mainCount > 0 || $otherCount > 0) {
+        // Add JavaScript and CSS to inject the address history section
+        CRM_Core_Resources::singleton()->addScript("
+          CRM.$(function($) {
+            // Wait for the page to be ready
+            setTimeout(function() {
+              // Find the location to insert our section (after other merge options)
+              var insertLocation = null;
+              
+              // Try to find existing merge tables or accordion sections
+              if ($('.crm-contact-merge-form-block table.form-layout-compressed').length > 0) {
+                insertLocation = $('.crm-contact-merge-form-block table.form-layout-compressed').last();
+              } else if ($('#Contact').length > 0) {
+                insertLocation = $('#Contact').parent();
+              } else if ($('.crm-contact-merge-form-block').length > 0) {
+                insertLocation = $('.crm-contact-merge-form-block').last();
+              }
+              
+              if (insertLocation) {
+                var addressHistorySection = $('<div class=\"crm-accordion-wrapper crm-address-history-accordion\">' +
+                  '<div class=\"crm-accordion-header\">' +
+                    '<span class=\"crm-accordion-pointer\"></span>' +
+                    '" . ts('Address History') . " ' +
+                    '<span style=\"font-weight: normal; color: #666;\">' +
+                      '(" . ts('Main: %1, Other: %2', [1 => $mainCount, 2 => $otherCount]) . ")' +
+                    '</span>' +
+                  '</div>' +
+                  '<div class=\"crm-accordion-body\" style=\"display: block;\">' +
+                    '<div class=\"crm-block crm-form-block\">' +
+                      '<table class=\"form-layout-compressed\">' +
+                        '<tr>' +
+                          '<td class=\"label\" style=\"width: 20%;\">" . ts('Records') . "</td>' +
+                          '<td>' +
+                            '<div style=\"margin-bottom: 10px;\">' +
+                              '<strong>" . ts('Main Contact') . ":</strong> {$mainCount} " . ts('address history records') . "<br>' +
+                              '<strong>" . ts('Other Contact') . ":</strong> {$otherCount} " . ts('address history records') . "' +
+                            '</div>' +
+                          '</td>' +
+                        '</tr>' +
+                        '<tr>' +
+                          '<td class=\"label\">" . ts('Action') . "</td>' +
+                          '<td>' +
+                            '<div style=\"margin: 5px 0;\">' +
+                              '<label style=\"font-weight: normal;\">' +
+                                '<input type=\"radio\" name=\"address_history_action\" value=\"move\" checked style=\"margin-right: 5px;\">' +
+                                '<strong>" . ts('Move all address history to main contact') . "</strong>' +
+                                '<div style=\"color: #666; font-size: 0.9em; margin-left: 20px;\">" . ts('Recommended: Combines all address history into one complete timeline') . "</div>' +
+                              '</label>' +
+                            '</div>' +
+                            '<div style=\"margin: 5px 0;\">' +
+                              '<label style=\"font-weight: normal;\">' +
+                                '<input type=\"radio\" name=\"address_history_action\" value=\"copy\" style=\"margin-right: 5px;\">' +
+                                '<strong>" . ts('Copy address history to main contact') . "</strong>' +
+                                '<div style=\"color: #666; font-size: 0.9em; margin-left: 20px;\">" . ts('Creates duplicates - use only if you need to preserve original records') . "</div>' +
+                              '</label>' +
+                            '</div>' +
+                            '<div style=\"margin: 5px 0;\">' +
+                              '<label style=\"font-weight: normal;\">' +
+                                '<input type=\"radio\" name=\"address_history_action\" value=\"keep\" style=\"margin-right: 5px;\">' +
+                                '<strong>" . ts('Keep address histories separate') . "</strong>' +
+                                '<div style=\"color: #666; font-size: 0.9em; margin-left: 20px;\">" . ts('Address history from other contact will be deleted with the contact') . "</div>' +
+                              '</label>' +
+                            '</div>' +
+                          '</td>' +
+                        '</tr>' +
+                      '</table>' +
+                    '</div>' +
+                  '</div>' +
+                '</div>');
+                
+                // Insert after the last merge section
+                insertLocation.after(addressHistorySection);
+                
+                // Make it collapsible like other CiviCRM accordions
+                addressHistorySection.find('.crm-accordion-header').on('click', function() {
+                  var body = $(this).next('.crm-accordion-body');
+                  var wrapper = $(this).parent();
+                  
+                  if (body.is(':visible')) {
+                    body.slideUp();
+                    wrapper.addClass('collapsed');
+                  } else {
+                    body.slideDown();
+                    wrapper.removeClass('collapsed');
+                  }
+                });
+                
+                // Handle form submission to capture the selected action
+                $('form#Merge').on('submit', function() {
+                  var selectedAction = $('input[name=\"address_history_action\"]:checked').val();
+                  
+                  // Add hidden field to pass the action to the backend
+                  if (selectedAction && !$('input[name=\"_address_history_action\"]').length) {
+                    $(this).append('<input type=\"hidden\" name=\"_address_history_action\" value=\"' + selectedAction + '\">');
+                  }
+                });
+              }
+            }, 500); // Small delay to ensure page is fully loaded
+          });
+        ");
+        
+        // Add some CSS to style the accordion properly
+        CRM_Core_Resources::singleton()->addStyle("
+          .crm-address-history-accordion {
+            border: 1px solid #ddd;
+            margin: 10px 0;
+            background: #f8f9fa;
           }
-        });
-      ");
+          .crm-address-history-accordion .crm-accordion-header {
+            background: #e9ecef;
+            padding: 10px 15px;
+            cursor: pointer;
+            font-weight: bold;
+            border-bottom: 1px solid #ddd;
+          }
+          .crm-address-history-accordion .crm-accordion-pointer:before {
+            content: '▼';
+            margin-right: 8px;
+            font-size: 10px;
+          }
+          .crm-address-history-accordion.collapsed .crm-accordion-pointer:before {
+            content: '▶';
+          }
+          .crm-address-history-accordion .crm-accordion-body {
+            padding: 15px;
+          }
+        ");
+      }
+    }
+  }
+}
+
+/**
+ * Enhanced merge processing - captures the user's choice
+ */
+function addresshistory_civicrm_merge($type, &$data, $mainId = NULL, $otherId = NULL, $tables = NULL) {
+  if ($type == 'batch' && $mainId && $otherId) {
+    try {
+      // Get the selected action from the form submission
+      $action = CRM_Utils_Request::retrieve('_address_history_action', 'String');
+      if (!$action) {
+        $action = 'move'; // Default behavior
+      }
+      
+      CRM_Addresshistory_BAO_AddressHistory::mergeAddressHistory($mainId, $otherId, ['action' => $action]);
+    } catch (Exception $e) {
+      CRM_Core_Error::debug_log_message('Address History Merge Error: ' . $e->getMessage());
     }
   }
 }
