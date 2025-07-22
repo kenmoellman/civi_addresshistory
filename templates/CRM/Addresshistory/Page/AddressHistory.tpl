@@ -64,7 +64,8 @@
               {if $canEdit}
                 <td>
                   <a href="{crmURL p='civicrm/contact/view/address-history/edit' q="reset=1&cid=`$contactId`&id=`$address.id`"}" 
-                     class="action-item crm-hover-button" title="{ts}Edit History Record{/ts}">
+                     class="action-item crm-hover-button crm-popup" 
+                     title="{ts}Edit History Record{/ts}">
                     <i class="crm-i fa-pencil"></i> {ts}Edit{/ts}
                   </a>
                 </td>
@@ -82,13 +83,37 @@
   {/if}
 </div>
 
-<div class="crm-submit-buttons">
+{* Only show back button when not in a tab context *}
+<div class="crm-submit-buttons" id="address-history-back-button">
   <a class="button" href="{crmURL p='civicrm/contact/view' q="reset=1&cid=`$contactId`"}">
     <i class="crm-i fa-chevron-left"></i> {ts}Back to Contact Summary{/ts}
   </a>
 </div>
 
 {literal}
+<script type="text/javascript">
+CRM.$(function($) {
+  // Hide back button if we're in a tab context
+  if (window.location.hash.indexOf('address_history') !== -1 || 
+      $('#tab_address_history').length > 0 ||
+      $('body').hasClass('crm-contact-view')) {
+    $('#address-history-back-button').hide();
+  }
+  
+  // Refresh the address history tab after editing
+  $(document).on('crmFormSuccess', function(e) {
+    if ($('#tab_address_history').length > 0) {
+      // We're in a tab, refresh the tab content
+      $('#tab_address_history').crmSnippet('refresh');
+    } else {
+      // We're on a standalone page, reload
+      window.location.reload();
+    }
+  });
+});
+</script>
+{/literal}
+
 <style>
 .crm-label {
   padding: 2px 6px;
@@ -131,4 +156,3 @@
   background-color: #e8f4f8;
 }
 </style>
-{/literal}
