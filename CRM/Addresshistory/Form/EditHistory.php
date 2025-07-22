@@ -163,15 +163,7 @@ class CRM_Addresshistory_Form_EditHistory extends CRM_Core_Form {
       );
     }
     
-    // Check if this is a popup/snippet context - if so, don't redirect
-    if (CRM_Utils_Request::retrieve('snippet', 'String') || 
-        !empty($_REQUEST['snippet']) ||
-        CRM_Utils_Array::value('HTTP_X_REQUESTED_WITH', $_SERVER) == 'XMLHttpRequest') {
-      // For AJAX/popup requests, just return - let JavaScript handle the popup closing
-      return;
-    }
-    
-    // Only redirect if this is a normal page request
+    // Always redirect - this will either refresh the popup content or go to the page
     $url = CRM_Utils_System::url('civicrm/contact/view/address-history', [
       'reset' => 1,
       'cid' => $this->_contactId,
