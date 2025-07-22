@@ -155,15 +155,42 @@ class CRM_Addresshistory_Form_EditHistory extends CRM_Core_Form {
         'success'
       );
       
+      // Check if this is a popup/ajax context
+      if (CRM_Utils_Request::retrieve('snippet', 'String') || 
+          CRM_Utils_Request::retrieve('context', 'String') == 'popup' ||
+          !empty($_REQUEST['snippet'])) {
+        
+        // For popup context, close the popup and refresh parent
+        CRM_Core_Resources::singleton()->addScript("
+          parent.CRM.$('#bootstrap-theme').trigger('crmFormSuccess');
+          parent.CRM.$('.ui-dialog-content').dialog('close');
+          if (parent.CRM.refreshParent) {
+            parent.CRM.refreshParent(parent.CRM.$('#tab_address_history'));
+          } else {
+            parent.location.reload();
+          }
+        ");
+        
+        // Don't redirect, just return
+        return;
+      }
+      
     } catch (Exception $e) {
       CRM_Core_Session::setStatus(
         ts('Error updating address history: %1', [1 => $e->getMessage()]),
         ts('Error'),
         'error'
       );
+      
+      // For popup context, show error but don't redirect
+      if (CRM_Utils_Request::retrieve('snippet', 'String') || 
+          CRM_Utils_Request::retrieve('context', 'String') == 'popup' ||
+          !empty($_REQUEST['snippet'])) {
+        return;
+      }
     }
     
-    // Redirect back to address history tab
+    // Only redirect if not in popup context
     $url = CRM_Utils_System::url('civicrm/contact/view/address-history', [
       'reset' => 1,
       'cid' => $this->_contactId,
