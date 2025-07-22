@@ -86,6 +86,7 @@ CRM.$(function($) {
 </script>
 {/literal}
 
+{literal}
 <style>
 .address-summary-section {
   margin-bottom: 10px;
@@ -130,3 +131,4 @@ CRM.$(function($) {
   margin-right: 4px;
 }
 </style>
+{/literal}
