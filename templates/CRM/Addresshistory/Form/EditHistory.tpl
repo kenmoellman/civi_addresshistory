@@ -65,12 +65,23 @@
 {literal}
 <script type="text/javascript">
 CRM.$(function($) {
-  // Handle form submission in popup context
-  $('form.{/literal}{$form.formClass}{literal}').on('submit', function() {
-    // Check if we're in a popup (dialog) context
-    if ($(this).closest('.ui-dialog').length > 0) {
-      // We're in a popup, the postProcess will handle closing
-      return true;
+  // Handle successful form submission
+  $(document).on('crmFormSuccess', function(e, data) {
+    // Check if we're in a popup context
+    if ($('.ui-dialog-content:visible').length > 0) {
+      // Close the popup
+      $('.ui-dialog-content:visible').dialog('close');
+      
+      // Refresh the address history tab if it exists
+      if (parent.$('#tab_address_history').length > 0) {
+        parent.$('#tab_address_history').crmSnippet('refresh');
+      } else if (parent.location && parent.location.href.indexOf('address-history') !== -1) {
+        // If we're on the address history page, reload it
+        parent.location.reload();
+      }
+      
+      // Prevent the default redirect
+      return false;
     }
   });
   
@@ -80,6 +91,31 @@ CRM.$(function($) {
       e.preventDefault();
       $('.ui-dialog-content').dialog('close');
       return false;
+    }
+  });
+  
+  // Alternative approach - listen for form submission and handle popup closing
+  $('form.CRM_Addresshistory_Form_EditHistory').on('submit', function() {
+    var $form = $(this);
+    
+    // Only handle if we're in a popup
+    if ($form.closest('.ui-dialog').length > 0) {
+      // Override the form's default behavior
+      setTimeout(function() {
+        // Check for success status and close popup
+        if ($('.crm-status-box-outer .status.success').length > 0) {
+          $('.ui-dialog-content:visible').dialog('close');
+          
+          // Refresh parent if possible
+          if (parent && parent.$) {
+            if (parent.$('#tab_address_history').length > 0) {
+              parent.$('#tab_address_history').crmSnippet('refresh');
+            } else {
+              parent.location.reload();
+            }
+          }
+        }
+      }, 1000); // Give it a second to process
     }
   });
 });
