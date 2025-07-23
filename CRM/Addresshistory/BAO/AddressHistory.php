@@ -420,3 +420,4 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
       'total_after_merge' => $mainCount + $otherCount,
     ];
   }
+}
