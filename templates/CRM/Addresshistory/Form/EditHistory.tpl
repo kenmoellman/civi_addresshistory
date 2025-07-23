@@ -83,15 +83,24 @@ CRM.$(function($) {
         setTimeout(function() {
           $('.ui-dialog-content:visible').dialog('close');
           
-          // Refresh parent window address history tab
+          // Force refresh of address history content
           if (window.parent && window.parent.$) {
+            // Try multiple ways to refresh the address history
             if (window.parent.$('#tab_address_history').length > 0) {
+              // We're in a tab context - refresh the tab
               window.parent.$('#tab_address_history').crmSnippet('refresh');
+            } else if (window.parent.$('.crm-results-block').length > 0) {
+              // We're on the address history page - reload it
+              window.parent.location.reload();
             } else {
+              // Fallback - just reload the parent
               window.parent.location.reload();
             }
+          } else {
+            // No parent window, reload current window
+            window.location.reload();
           }
-        }, 200);
+        }, 500); // Give a bit more time for the success message to be processed
       }
       
       // Also check if we've been redirected to the address history page
@@ -110,7 +119,7 @@ CRM.$(function($) {
               window.parent.location.reload();
             }
           }
-        }, 200);
+        }, 500);
       }
     }, 500);
     
