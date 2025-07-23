@@ -171,53 +171,52 @@ class CRM_Addresshistory_Form_EditHistory extends CRM_Core_Form {
     
     // Debug: Log the raw form values and POST data
     CRM_Core_Error::debug_log_message("EditHistory postProcess - exportValues(): " . print_r($values, true));
-    CRM_Core_Error::debug_log_message("EditHistory postProcess - POST data: " . print_r($_POST, true));
     
     try {
       // Store original values for comparison
       $originalEndDate = $this->_addressHistory->end_date;
       CRM_Core_Error::debug_log_message("EditHistory postProcess - Original end_date: " . ($originalEndDate ?: 'NULL'));
       
-      // Update the address history record
-      $this->_addressHistory->start_date = $values['start_date'];
-      
       // Handle end date based on radio button selection
       $endDateType = $values['end_date_type'] ?? 'current';
-      
       CRM_Core_Error::debug_log_message("EditHistory postProcess - End date type selected: '" . $endDateType . "'");
       
+      $newEndDate = NULL;
       if ($endDateType === 'current') {
         // User selected "Current" - set end_date to NULL
-        $this->_addressHistory->end_date = NULL;
-        CRM_Core_Error::debug_log_message("EditHistory postProcess - Setting end_date to NULL (current)");
+        $newEndDate = NULL;
+        CRM_Core_Error::debug_log_message("EditHistory postProcess - Will set end_date to NULL (current)");
       } elseif ($endDateType === 'specific') {
         // User selected "Specific End Date" - use the date value
         $endDateValue = $values['end_date_value'] ?? '';
         CRM_Core_Error::debug_log_message("EditHistory postProcess - Specific end date value: '" . $endDateValue . "'");
         
         if (!empty($endDateValue)) {
-          $processedDate = CRM_Utils_Date::processDate($endDateValue);
-          $this->_addressHistory->end_date = $processedDate;
-          CRM_Core_Error::debug_log_message("EditHistory postProcess - Setting end_date to: '" . $processedDate . "'");
+          $newEndDate = CRM_Utils_Date::processDate($endDateValue);
+          CRM_Core_Error::debug_log_message("EditHistory postProcess - Will set end_date to: '" . $newEndDate . "'");
         } else {
           // If they selected specific but didn't provide a date, default to current
-          $this->_addressHistory->end_date = NULL;
-          CRM_Core_Error::debug_log_message("EditHistory postProcess - No specific date provided, defaulting to NULL");
+          $newEndDate = NULL;
+          CRM_Core_Error::debug_log_message("EditHistory postProcess - No specific date provided, will set to NULL");
         }
       } else {
         // Fallback - if somehow we get an unexpected value
-        $this->_addressHistory->end_date = NULL;
-        CRM_Core_Error::debug_log_message("EditHistory postProcess - Unexpected end_date_type, defaulting to NULL");
+        $newEndDate = NULL;
+        CRM_Core_Error::debug_log_message("EditHistory postProcess - Unexpected end_date_type, will set to NULL");
       }
       
-      $this->_addressHistory->modified_date = date('Y-m-d H:i:s');
+      // Use direct SQL to update the record to avoid DAO NULL issues
+      $updateQuery = "UPDATE civicrm_address_history SET start_date = %1, end_date = %2, modified_date = NOW() WHERE id = %3";
+      $updateParams = [
+        1 => [$values['start_date'], 'String'],
+        2 => [$newEndDate, 'String'], // CiviCRM will handle NULL properly in executeQuery
+        3 => [$this->_id, 'Integer'],
+      ];
       
-      // Log what we're about to save
-      CRM_Core_Error::debug_log_message("EditHistory postProcess - About to save: start_date='" . $this->_addressHistory->start_date . "', end_date='" . ($this->_addressHistory->end_date ?: 'NULL') . "'");
+      CRM_Core_Error::debug_log_message("EditHistory postProcess - About to execute SQL update with params: " . print_r($updateParams, true));
       
-      // Save and log the result
-      $result = $this->_addressHistory->save();
-      CRM_Core_Error::debug_log_message("EditHistory postProcess - Save result: " . ($result ? 'SUCCESS' : 'FAILED'));
+      $result = CRM_Core_DAO::executeQuery($updateQuery, $updateParams);
+      CRM_Core_Error::debug_log_message("EditHistory postProcess - SQL update result: " . ($result ? 'SUCCESS' : 'FAILED'));
       
       // Verify what was actually saved to the database
       $verifyQuery = "SELECT id, start_date, end_date FROM civicrm_address_history WHERE id = %1";
@@ -225,9 +224,13 @@ class CRM_Addresshistory_Form_EditHistory extends CRM_Core_Form {
       if ($verifyResult->fetch()) {
         CRM_Core_Error::debug_log_message("EditHistory postProcess - DB verification: id=" . $verifyResult->id . ", start_date='" . $verifyResult->start_date . "', end_date='" . ($verifyResult->end_date ?: 'NULL') . "'");
         
-        // Additional check: did the end_date actually change?
+        // Check if the end_date actually changed
         $actualChange = ($originalEndDate !== $verifyResult->end_date);
         CRM_Core_Error::debug_log_message("EditHistory postProcess - End date actually changed: " . ($actualChange ? 'YES' : 'NO'));
+        
+        if (!$actualChange && $endDateType === 'current') {
+          CRM_Core_Error::debug_log_message("EditHistory postProcess - WARNING: End date should have changed to NULL but didn't!");
+        }
       } else {
         CRM_Core_Error::debug_log_message("EditHistory postProcess - ERROR: Could not verify saved record!");
       }
