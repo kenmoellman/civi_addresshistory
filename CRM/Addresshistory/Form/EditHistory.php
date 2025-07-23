@@ -150,30 +150,40 @@ class CRM_Addresshistory_Form_EditHistory extends CRM_Core_Form {
     
     // Debug: Log the raw form values
     CRM_Core_Error::debug_log_message("EditHistory - Raw form values: " . print_r($values, true));
+    CRM_Core_Error::debug_log_message("EditHistory - Raw POST data: " . print_r($_POST, true));
     
     try {
       // Update the address history record
       $this->_addressHistory->start_date = $values['start_date'];
       
-      // Handle end date more carefully
+      // Handle end date - CiviCRM date pickers can return various "empty" values
       $endDateValue = $values['end_date'] ?? '';
       
-      // Debug log the end date handling
-      CRM_Core_Error::debug_log_message("EditHistory - End date raw value: '" . $endDateValue . "'");
-      CRM_Core_Error::debug_log_message("EditHistory - End date is empty: " . (empty($endDateValue) ? 'YES' : 'NO'));
-      CRM_Core_Error::debug_log_message("EditHistory - End date trimmed: '" . trim($endDateValue) . "'");
+      // Check all the possible ways CiviCRM might represent an empty date
+      $isEmpty = (
+        empty($endDateValue) ||
+        $endDateValue === '' ||
+        $endDateValue === '0000-00-00' ||
+        $endDateValue === '0000-00-00 00:00:00' ||
+        $endDateValue === '00/00/0000' ||
+        $endDateValue === 'null' ||
+        $endDateValue === NULL ||
+        // Handle array format that CiviCRM sometimes uses for dates
+        (is_array($endDateValue) && (empty($endDateValue['d']) || empty($endDateValue['M']) || empty($endDateValue['Y']))) ||
+        // Handle formatted date strings that represent empty dates
+        preg_match('/^[0\/\-\s:]*$/', trim($endDateValue))
+      );
       
-      // More comprehensive empty checking for dates
-      if (empty($endDateValue) || 
-          trim($endDateValue) === '' || 
-          $endDateValue === '0000-00-00' || 
-          $endDateValue === '0000-00-00 00:00:00' ||
-          $endDateValue === NULL) {
+      CRM_Core_Error::debug_log_message("EditHistory - End date value: '" . (is_array($endDateValue) ? print_r($endDateValue, true) : $endDateValue) . "'");
+      CRM_Core_Error::debug_log_message("EditHistory - Is empty: " . ($isEmpty ? 'YES' : 'NO'));
+      
+      if ($isEmpty) {
         $this->_addressHistory->end_date = NULL;
         CRM_Core_Error::debug_log_message("EditHistory - Setting end_date to NULL");
       } else {
-        $this->_addressHistory->end_date = $endDateValue;
-        CRM_Core_Error::debug_log_message("EditHistory - Setting end_date to: " . $endDateValue);
+        // Let CiviCRM handle the date formatting
+        $this->_addressHistory->end_date = CRM_Utils_Date::processDate($endDateValue);
+        CRM_Core_Error::debug_log_message("EditHistory - Setting end_date to: " . $this->_addressHistory->end_date);
       }
       
       $this->_addressHistory->modified_date = date('Y-m-d H:i:s');
