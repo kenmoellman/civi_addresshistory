@@ -43,10 +43,19 @@
   </div>
 
   <div class="crm-section">
-    <div class="label">{$form.end_date.label}</div>
+    <div class="label">{$form.end_date_type.label}</div>
     <div class="content">
-      {$form.end_date.html}
-      <div class="description">{ts}When this address stopped being active. Leave blank if this is still the current address.{/ts}</div>
+      {$form.end_date_type.html}
+      <div class="description">{ts}Choose whether this address has an end date or is still current.{/ts}</div>
+    </div>
+    <div class="clear"></div>
+  </div>
+
+  <div class="crm-section" id="specific-end-date-section">
+    <div class="label">{$form.end_date_value.label}</div>
+    <div class="content">
+      {$form.end_date_value.html}
+      <div class="description">{ts}When this address stopped being active.{/ts}</div>
     </div>
     <div class="clear"></div>
   </div>
@@ -67,14 +76,37 @@
 CRM.$(function($) {
   var formSubmitted = false;
   
+  // Function to show/hide the end date picker based on radio selection
+  function toggleEndDatePicker() {
+    var endDateType = $('input[name="end_date_type"]:checked').val();
+    console.log('Address History Edit: End date type changed to:', endDateType);
+    
+    if (endDateType === 'specific') {
+      $('#specific-end-date-section').show();
+      $('#end_date_value').focus();
+    } else {
+      $('#specific-end-date-section').hide();
+      $('#end_date_value').val(''); // Clear the date when hiding
+    }
+  }
+  
+  // Initialize the display based on current selection
+  toggleEndDatePicker();
+  
+  // Handle radio button changes
+  $('input[name="end_date_type"]').on('change', function() {
+    toggleEndDatePicker();
+  });
+  
   // Track when the form is actually submitted
   $('form.CRM_Addresshistory_Form_EditHistory').on('submit', function() {
     formSubmitted = true;
     
     // Log form values before submission for debugging
     var startDate = $('#start_date').val();
-    var endDate = $('#end_date').val();
-    console.log('Address History Edit: Form submitted with start_date="' + startDate + '", end_date="' + endDate + '"');
+    var endDateType = $('input[name="end_date_type"]:checked').val();
+    var endDateValue = $('#end_date_value').val();
+    console.log('Address History Edit: Form submitted with start_date="' + startDate + '", end_date_type="' + endDateType + '", end_date_value="' + endDateValue + '"');
     
     // Start monitoring for success only AFTER form submission
     var checkInterval = setInterval(function() {
@@ -189,6 +221,23 @@ CRM.$(function($) {
 
 .crm-marker i {
   margin-right: 4px;
+}
+
+#specific-end-date-section {
+  margin-left: 20px;
+  padding: 10px;
+  background-color: #f9f9f9;
+  border-left: 3px solid #007cba;
+  border-radius: 4px;
+}
+
+.crm-section input[type="radio"] {
+  margin-right: 8px;
+}
+
+.crm-section .content label {
+  font-weight: normal;
+  margin-right: 15px;
 }
 </style>
 {/literal}
