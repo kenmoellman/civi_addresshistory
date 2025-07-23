@@ -145,9 +145,20 @@ class CRM_Addresshistory_Form_EditHistory extends CRM_Core_Form {
     try {
       // Update the address history record
       $this->_addressHistory->start_date = $values['start_date'];
-      $this->_addressHistory->end_date = $values['end_date'] ?: NULL;
+      
+      // Handle end date - if empty, set to NULL (current)
+      if (empty($values['end_date']) || trim($values['end_date']) === '') {
+        $this->_addressHistory->end_date = NULL;
+      } else {
+        $this->_addressHistory->end_date = $values['end_date'];
+      }
+      
       $this->_addressHistory->modified_date = date('Y-m-d H:i:s');
       $this->_addressHistory->save();
+      
+      // Log the update for debugging
+      $endDateText = $this->_addressHistory->end_date ? $this->_addressHistory->end_date : 'NULL (Current)';
+      CRM_Core_Error::debug_log_message("EditHistory - Updated record {$this->_id}: start_date={$this->_addressHistory->start_date}, end_date={$endDateText}");
       
       CRM_Core_Session::setStatus(
         ts('Address history has been updated successfully.'),
