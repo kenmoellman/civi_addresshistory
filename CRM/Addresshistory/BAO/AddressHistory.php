@@ -258,8 +258,6 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
     // Get the merge action from options or default to 'move'
     $action = CRM_Utils_Array::value('action', $options, 'move');
     
-    CRM_Core_Error::debug_log_message("BAO mergeAddressHistory called - MainID: {$mainId}, OtherID: {$otherId}, Action: {$action}");
-    
     switch ($action) {
       case 'move':
         // Move all address history from other contact to main contact
@@ -274,7 +272,6 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
       case 'keep':
         // Don't merge - keep address histories separate
         // (This means do nothing, but log it)
-        CRM_Core_Error::debug_log_message("Address History: Keeping separate histories for contacts {$mainId} and {$otherId}");
         CRM_Core_Session::setStatus(
           ts('Address history kept separate - no records moved.'),
           ts('Address History'),
@@ -295,13 +292,9 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
    * @param int $otherId
    */
   private static function moveAddressHistory($mainId, $otherId) {
-    CRM_Core_Error::debug_log_message("moveAddressHistory called - MainID: {$mainId}, OtherID: {$otherId}");
-    
     // First check how many records we're about to move
     $countQuery = "SELECT COUNT(*) FROM civicrm_address_history WHERE contact_id = %1";
     $beforeCount = CRM_Core_DAO::singleValueQuery($countQuery, [1 => [$otherId, 'Integer']]);
-    
-    CRM_Core_Error::debug_log_message("moveAddressHistory - Found {$beforeCount} records to move");
     
     if ($beforeCount == 0) {
       CRM_Core_Session::setStatus(
@@ -317,9 +310,6 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
     $mainCurrentAddresses = self::getCurrentAddressesByLocationTypeBeforeMerge($mainId);
     $otherCurrentAddresses = self::getCurrentAddressesByLocationTypeBeforeMerge($otherId);
     
-    CRM_Core_Error::debug_log_message("moveAddressHistory - Main contact current addresses by location type: " . print_r(array_keys($mainCurrentAddresses), true));
-    CRM_Core_Error::debug_log_message("moveAddressHistory - Other contact current addresses by location type: " . print_r(array_keys($otherCurrentAddresses), true));
-    
     // Update all address history records from the duplicate contact
     CRM_Core_DAO::executeQuery("
       UPDATE civicrm_address_history 
@@ -332,16 +322,10 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
     
     // Check how many records were actually moved by counting again
     $afterCount = CRM_Core_DAO::singleValueQuery($countQuery, [1 => [$otherId, 'Integer']]);
-    $mainAfterCount = CRM_Core_DAO::singleValueQuery($countQuery, [1 => [$mainId, 'Integer']]);
-    
     $actuallyMoved = $beforeCount - $afterCount;
-    
-    CRM_Core_Error::debug_log_message("moveAddressHistory - Actually moved {$actuallyMoved} records");
     
     // Now we need to fix the end dates based on what actually happened to the addresses
     self::fixEndDatesAfterMerge($mainId, $mainCurrentAddresses, $otherCurrentAddresses);
-    
-    CRM_Core_Error::debug_log_message("moveAddressHistory - After move: Other contact has {$afterCount} records, Main contact has {$mainAfterCount} records");
     
     if ($actuallyMoved > 0) {
       CRM_Core_Session::setStatus(
@@ -391,19 +375,13 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
    * @param array $otherCurrentAddresses Addresses other contact had before merge
    */
   private static function fixEndDatesAfterMerge($mainId, $mainCurrentAddresses, $otherCurrentAddresses) {
-    CRM_Core_Error::debug_log_message("fixEndDatesAfterMerge - Starting end date correction");
-    
     // Get current addresses for main contact after merge
     $mainPostMergeAddresses = self::getCurrentAddressesByLocationTypeBeforeMerge($mainId);
-    
-    CRM_Core_Error::debug_log_message("fixEndDatesAfterMerge - Main contact addresses after merge: " . print_r(array_keys($mainPostMergeAddresses), true));
     
     // For each location type that the other contact had
     foreach ($otherCurrentAddresses as $locationTypeId => $otherAddress) {
       $hadMainAddress = isset($mainCurrentAddresses[$locationTypeId]);
       $hasPostMergeAddress = isset($mainPostMergeAddresses[$locationTypeId]);
-      
-      CRM_Core_Error::debug_log_message("fixEndDatesAfterMerge - Location type {$locationTypeId}: had main={$hadMainAddress}, has post-merge={$hasPostMergeAddress}");
       
       if (!$hasPostMergeAddress) {
         // Case 1: The other contact's address was NOT merged into main contact
@@ -420,8 +398,6 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
           2 => [$locationTypeId, 'Integer'], 
           3 => [$otherAddress['id'], 'Integer'],
         ]);
-        
-        CRM_Core_Error::debug_log_message("fixEndDatesAfterMerge - Ended address history for location type {$locationTypeId} (address not merged)");
         
       } else {
         // Case 2: The other contact's address WAS merged into main contact
@@ -440,8 +416,6 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
             2 => [$locationTypeId, 'Integer'],
             3 => [$mainCurrentAddresses[$locationTypeId]['id'], 'Integer'],
           ]);
-          
-          CRM_Core_Error::debug_log_message("fixEndDatesAfterMerge - Ended old main contact address history for location type {$locationTypeId} (replaced by other)");
           
           // The other contact's address becomes current (end_date = NULL), but we need to update its original_address_id
           CRM_Core_DAO::executeQuery("
@@ -474,13 +448,9 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
             3 => [$mainPostMergeAddresses[$locationTypeId]['id'], 'Integer'],
             4 => [$otherAddress['id'], 'Integer'],
           ]);
-          
-          CRM_Core_Error::debug_log_message("fixEndDatesAfterMerge - Updated original_address_id for location type {$locationTypeId} (new type for main contact)");
         }
       }
     }
-    
-    CRM_Core_Error::debug_log_message("fixEndDatesAfterMerge - Completed end date correction");
   }
 
   /**
