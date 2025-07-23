@@ -312,8 +312,16 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
       return;
     }
     
+    // Before moving, we need to understand the current address situation
+    // Get current addresses for both contacts before the merge
+    $mainCurrentAddresses = self::getCurrentAddressesByLocationTypeBeforeMerge($mainId);
+    $otherCurrentAddresses = self::getCurrentAddressesByLocationTypeBeforeMerge($otherId);
+    
+    CRM_Core_Error::debug_log_message("moveAddressHistory - Main contact current addresses by location type: " . print_r(array_keys($mainCurrentAddresses), true));
+    CRM_Core_Error::debug_log_message("moveAddressHistory - Other contact current addresses by location type: " . print_r(array_keys($otherCurrentAddresses), true));
+    
     // Update all address history records from the duplicate contact
-    $dao = CRM_Core_DAO::executeQuery("
+    CRM_Core_DAO::executeQuery("
       UPDATE civicrm_address_history 
       SET contact_id = %1 
       WHERE contact_id = %2
@@ -329,6 +337,10 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
     $actuallyMoved = $beforeCount - $afterCount;
     
     CRM_Core_Error::debug_log_message("moveAddressHistory - Actually moved {$actuallyMoved} records");
+    
+    // Now we need to fix the end dates based on what actually happened to the addresses
+    self::fixEndDatesAfterMerge($mainId, $mainCurrentAddresses, $otherCurrentAddresses);
+    
     CRM_Core_Error::debug_log_message("moveAddressHistory - After move: Other contact has {$afterCount} records, Main contact has {$mainAfterCount} records");
     
     if ($actuallyMoved > 0) {
@@ -344,6 +356,131 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
         'warning'
       );
     }
+  }
+
+  /**
+   * Get current addresses for a contact by location type (before merge).
+   *
+   * @param int $contactId
+   * @return array Array keyed by location_type_id with address IDs as values
+   */
+  private static function getCurrentAddressesByLocationTypeBeforeMerge($contactId) {
+    $addresses = [];
+    
+    $dao = CRM_Core_DAO::executeQuery("
+      SELECT id, location_type_id, is_primary
+      FROM civicrm_address 
+      WHERE contact_id = %1
+    ", [1 => [$contactId, 'Integer']]);
+    
+    while ($dao->fetch()) {
+      $addresses[$dao->location_type_id] = [
+        'id' => $dao->id,
+        'is_primary' => $dao->is_primary,
+      ];
+    }
+    
+    return $addresses;
+  }
+
+  /**
+   * Fix end dates on address history records after a merge.
+   *
+   * @param int $mainId Main contact ID
+   * @param array $mainCurrentAddresses Addresses main contact had before merge
+   * @param array $otherCurrentAddresses Addresses other contact had before merge
+   */
+  private static function fixEndDatesAfterMerge($mainId, $mainCurrentAddresses, $otherCurrentAddresses) {
+    CRM_Core_Error::debug_log_message("fixEndDatesAfterMerge - Starting end date correction");
+    
+    // Get current addresses for main contact after merge
+    $mainPostMergeAddresses = self::getCurrentAddressesByLocationTypeBeforeMerge($mainId);
+    
+    CRM_Core_Error::debug_log_message("fixEndDatesAfterMerge - Main contact addresses after merge: " . print_r(array_keys($mainPostMergeAddresses), true));
+    
+    // For each location type that the other contact had
+    foreach ($otherCurrentAddresses as $locationTypeId => $otherAddress) {
+      $hadMainAddress = isset($mainCurrentAddresses[$locationTypeId]);
+      $hasPostMergeAddress = isset($mainPostMergeAddresses[$locationTypeId]);
+      
+      CRM_Core_Error::debug_log_message("fixEndDatesAfterMerge - Location type {$locationTypeId}: had main={$hadMainAddress}, has post-merge={$hasPostMergeAddress}");
+      
+      if (!$hasPostMergeAddress) {
+        // Case 1: The other contact's address was NOT merged into main contact
+        // This means the address was discarded, so end the history record
+        CRM_Core_DAO::executeQuery("
+          UPDATE civicrm_address_history 
+          SET end_date = NOW() 
+          WHERE contact_id = %1 
+          AND location_type_id = %2 
+          AND (end_date IS NULL OR end_date > NOW())
+          AND original_address_id = %3
+        ", [
+          1 => [$mainId, 'Integer'],
+          2 => [$locationTypeId, 'Integer'], 
+          3 => [$otherAddress['id'], 'Integer'],
+        ]);
+        
+        CRM_Core_Error::debug_log_message("fixEndDatesAfterMerge - Ended address history for location type {$locationTypeId} (address not merged)");
+        
+      } else {
+        // Case 2: The other contact's address WAS merged into main contact
+        if ($hadMainAddress) {
+          // Case 2a: Main contact already had an address of this type
+          // The main contact's old address was replaced, so end its history
+          CRM_Core_DAO::executeQuery("
+            UPDATE civicrm_address_history 
+            SET end_date = NOW() 
+            WHERE contact_id = %1 
+            AND location_type_id = %2 
+            AND (end_date IS NULL OR end_date > NOW())
+            AND original_address_id = %3
+          ", [
+            1 => [$mainId, 'Integer'],
+            2 => [$locationTypeId, 'Integer'],
+            3 => [$mainCurrentAddresses[$locationTypeId]['id'], 'Integer'],
+          ]);
+          
+          CRM_Core_Error::debug_log_message("fixEndDatesAfterMerge - Ended old main contact address history for location type {$locationTypeId} (replaced by other)");
+          
+          // The other contact's address becomes current (end_date = NULL), but we need to update its original_address_id
+          CRM_Core_DAO::executeQuery("
+            UPDATE civicrm_address_history 
+            SET original_address_id = %3
+            WHERE contact_id = %1 
+            AND location_type_id = %2 
+            AND (end_date IS NULL OR end_date > NOW())
+            AND original_address_id = %4
+          ", [
+            1 => [$mainId, 'Integer'],
+            2 => [$locationTypeId, 'Integer'],
+            3 => [$mainPostMergeAddresses[$locationTypeId]['id'], 'Integer'],
+            4 => [$otherAddress['id'], 'Integer'],
+          ]);
+          
+        } else {
+          // Case 2b: Main contact didn't have an address of this type
+          // The other contact's address becomes current, update original_address_id
+          CRM_Core_DAO::executeQuery("
+            UPDATE civicrm_address_history 
+            SET original_address_id = %3
+            WHERE contact_id = %1 
+            AND location_type_id = %2 
+            AND (end_date IS NULL OR end_date > NOW())
+            AND original_address_id = %4
+          ", [
+            1 => [$mainId, 'Integer'],
+            2 => [$locationTypeId, 'Integer'],
+            3 => [$mainPostMergeAddresses[$locationTypeId]['id'], 'Integer'],
+            4 => [$otherAddress['id'], 'Integer'],
+          ]);
+          
+          CRM_Core_Error::debug_log_message("fixEndDatesAfterMerge - Updated original_address_id for location type {$locationTypeId} (new type for main contact)");
+        }
+      }
+    }
+    
+    CRM_Core_Error::debug_log_message("fixEndDatesAfterMerge - Completed end date correction");
   }
 
   /**
