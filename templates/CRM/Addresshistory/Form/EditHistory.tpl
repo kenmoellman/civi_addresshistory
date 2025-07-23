@@ -79,7 +79,6 @@ CRM.$(function($) {
   // Function to show/hide the end date picker based on radio selection
   function toggleEndDatePicker() {
     var endDateType = $('input[name="end_date_type"]:checked').val();
-    console.log('Address History Edit: End date type changed to:', endDateType);
     
     if (endDateType === 'specific') {
       $('#specific-end-date-section').show();
@@ -101,21 +100,6 @@ CRM.$(function($) {
   // Track when the form is actually submitted
   $('form.CRM_Addresshistory_Form_EditHistory').on('submit', function() {
     formSubmitted = true;
-    
-    // Log form values before submission for debugging
-    var startDate = $('#start_date').val();
-    var endDateType = $('input[name="end_date_type"]:checked').val();
-    var endDateValue = $('#end_date_value').val();
-    
-    console.log('Address History Edit: Form submission details:');
-    console.log('  - start_date: "' + startDate + '"');
-    console.log('  - end_date_type: "' + endDateType + '"');
-    console.log('  - end_date_value: "' + endDateValue + '"');
-    console.log('  - end_date_section_visible: ' + $('#specific-end-date-section').is(':visible'));
-    
-    // Also log all form data being submitted
-    var formData = $(this).serialize();
-    console.log('Address History Edit: Serialized form data: ' + formData);
     
     // Start monitoring for success only AFTER form submission
     var checkInterval = setInterval(function() {
