@@ -57,23 +57,6 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
     return CRM_Core_DAO::singleValueQuery($query, [1 => [$contactId, 'Integer']]);
   }
 
-//  /**
-//   * Merge address history during contact merge.
-//   *
-//   * @param int $mainId
-//   * @param int $otherId
-//   */
-//  public static function mergeAddressHistory($mainId, $otherId) {
-//    // Update all address history records from the duplicate contact
-//    CRM_Core_DAO::executeQuery("
-//      UPDATE civicrm_address_history 
-//      SET contact_id = %1 
-//      WHERE contact_id = %2
-//    ", [
-//      1 => [$mainId, 'Integer'],
-//      2 => [$otherId, 'Integer']
-//    ]);
-//  }
 
   /**
    * Get formatted address history for display.
@@ -264,7 +247,8 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
     return TRUE;
   }
 
-/** Enhanced merge address history during contact merge.
+/**
+   * Enhanced merge address history during contact merge.
    *
    * @param int $mainId Main contact ID (keeping this one)
    * @param int $otherId Other contact ID (deleting this one)
@@ -273,6 +257,8 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
   public static function mergeAddressHistory($mainId, $otherId, $options = []) {
     // Get the merge action from options or default to 'move'
     $action = CRM_Utils_Array::value('action', $options, 'move');
+    
+    CRM_Core_Error::debug_log_message("BAO mergeAddressHistory called - MainID: {$mainId}, OtherID: {$otherId}, Action: {$action}");
     
     switch ($action) {
       case 'move':
@@ -289,6 +275,11 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
         // Don't merge - keep address histories separate
         // (This means do nothing, but log it)
         CRM_Core_Error::debug_log_message("Address History: Keeping separate histories for contacts {$mainId} and {$otherId}");
+        CRM_Core_Session::setStatus(
+          ts('Address history kept separate - no records moved.'),
+          ts('Address History'),
+          'info'
+        );
         break;
         
       default:
@@ -304,8 +295,25 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
    * @param int $otherId
    */
   private static function moveAddressHistory($mainId, $otherId) {
+    CRM_Core_Error::debug_log_message("moveAddressHistory called - MainID: {$mainId}, OtherID: {$otherId}");
+    
+    // First check how many records we're about to move
+    $countQuery = "SELECT COUNT(*) FROM civicrm_address_history WHERE contact_id = %1";
+    $beforeCount = CRM_Core_DAO::singleValueQuery($countQuery, [1 => [$otherId, 'Integer']]);
+    
+    CRM_Core_Error::debug_log_message("moveAddressHistory - Found {$beforeCount} records to move");
+    
+    if ($beforeCount == 0) {
+      CRM_Core_Session::setStatus(
+        ts('No address history records found to move.'),
+        ts('Address History'),
+        'info'
+      );
+      return;
+    }
+    
     // Update all address history records from the duplicate contact
-    CRM_Core_DAO::executeQuery("
+    $dao = CRM_Core_DAO::executeQuery("
       UPDATE civicrm_address_history 
       SET contact_id = %1 
       WHERE contact_id = %2
@@ -314,13 +322,28 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
       2 => [$otherId, 'Integer']
     ]);
     
-    $count = CRM_Core_DAO::affectedRows();
+    // Check how many records were actually moved by counting again
+    $afterCount = CRM_Core_DAO::singleValueQuery($countQuery, [1 => [$otherId, 'Integer']]);
+    $mainAfterCount = CRM_Core_DAO::singleValueQuery($countQuery, [1 => [$mainId, 'Integer']]);
     
-    CRM_Core_Session::setStatus(
-      ts('Moved %1 address history records from duplicate contact to main contact.', [1 => $count]),
-      ts('Address History Merged'),
-      'success'
-    );
+    $actuallyMoved = $beforeCount - $afterCount;
+    
+    CRM_Core_Error::debug_log_message("moveAddressHistory - Actually moved {$actuallyMoved} records");
+    CRM_Core_Error::debug_log_message("moveAddressHistory - After move: Other contact has {$afterCount} records, Main contact has {$mainAfterCount} records");
+    
+    if ($actuallyMoved > 0) {
+      CRM_Core_Session::setStatus(
+        ts('Moved %1 address history records from duplicate contact to main contact.', [1 => $actuallyMoved]),
+        ts('Address History Merged'),
+        'success'
+      );
+    } else {
+      CRM_Core_Session::setStatus(
+        ts('No address history records were moved. This may indicate an issue with the merge process.'),
+        ts('Address History Warning'),
+        'warning'
+      );
+    }
   }
 
   /**
@@ -397,4 +420,3 @@ class CRM_Addresshistory_BAO_AddressHistory extends CRM_Addresshistory_DAO_Addre
       'total_after_merge' => $mainCount + $otherCount,
     ];
   }
-}
