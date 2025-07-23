@@ -43,9 +43,12 @@ class CRM_Addresshistory_Form_EditHistory extends CRM_Core_Form {
    * Build the form object.
    */
   public function buildQuickForm() {
-    // Add form elements
+    // Add form elements with better empty value handling
     $this->add('datepicker', 'start_date', ts('Start Date'), [], TRUE, ['time' => TRUE]);
-    $this->add('datepicker', 'end_date', ts('End Date'), [], FALSE, ['time' => TRUE]);
+    $this->add('datepicker', 'end_date', ts('End Date'), [], FALSE, [
+      'time' => TRUE,
+      'allowClear' => TRUE,
+    ]);
     
     // Assign data to template
     $this->assign('addressSummary', $this->getAddressSummary());
@@ -64,11 +67,14 @@ class CRM_Addresshistory_Form_EditHistory extends CRM_Core_Form {
       ],
     ]);
 
-    // Set default values
+    // Set default values - handle NULL end_date properly
     $defaults = [
       'start_date' => $this->_addressHistory->start_date,
-      'end_date' => $this->_addressHistory->end_date,
+      'end_date' => $this->_addressHistory->end_date ?: '', // Convert NULL to empty string
     ];
+    
+    CRM_Core_Error::debug_log_message("EditHistory buildForm - Setting defaults: start_date='" . $defaults['start_date'] . "', end_date='" . $defaults['end_date'] . "'");
+    
     $this->setDefaults($defaults);
   }
 
@@ -142,23 +148,46 @@ class CRM_Addresshistory_Form_EditHistory extends CRM_Core_Form {
   public function postProcess() {
     $values = $this->exportValues();
     
+    // Debug: Log the raw form values
+    CRM_Core_Error::debug_log_message("EditHistory - Raw form values: " . print_r($values, true));
+    
     try {
       // Update the address history record
       $this->_addressHistory->start_date = $values['start_date'];
       
-      // Handle end date - if empty, set to NULL (current)
-      if (empty($values['end_date']) || trim($values['end_date']) === '') {
+      // Handle end date more carefully
+      $endDateValue = $values['end_date'] ?? '';
+      
+      // Debug log the end date handling
+      CRM_Core_Error::debug_log_message("EditHistory - End date raw value: '" . $endDateValue . "'");
+      CRM_Core_Error::debug_log_message("EditHistory - End date is empty: " . (empty($endDateValue) ? 'YES' : 'NO'));
+      CRM_Core_Error::debug_log_message("EditHistory - End date trimmed: '" . trim($endDateValue) . "'");
+      
+      // More comprehensive empty checking for dates
+      if (empty($endDateValue) || 
+          trim($endDateValue) === '' || 
+          $endDateValue === '0000-00-00' || 
+          $endDateValue === '0000-00-00 00:00:00' ||
+          $endDateValue === NULL) {
         $this->_addressHistory->end_date = NULL;
+        CRM_Core_Error::debug_log_message("EditHistory - Setting end_date to NULL");
       } else {
-        $this->_addressHistory->end_date = $values['end_date'];
+        $this->_addressHistory->end_date = $endDateValue;
+        CRM_Core_Error::debug_log_message("EditHistory - Setting end_date to: " . $endDateValue);
       }
       
       $this->_addressHistory->modified_date = date('Y-m-d H:i:s');
-      $this->_addressHistory->save();
       
-      // Log the update for debugging
-      $endDateText = $this->_addressHistory->end_date ? $this->_addressHistory->end_date : 'NULL (Current)';
-      CRM_Core_Error::debug_log_message("EditHistory - Updated record {$this->_id}: start_date={$this->_addressHistory->start_date}, end_date={$endDateText}");
+      // Save and log the result
+      $result = $this->_addressHistory->save();
+      CRM_Core_Error::debug_log_message("EditHistory - Save result: " . ($result ? 'SUCCESS' : 'FAILED'));
+      
+      // Verify what was actually saved to the database
+      $verifyQuery = "SELECT start_date, end_date FROM civicrm_address_history WHERE id = %1";
+      $verifyResult = CRM_Core_DAO::executeQuery($verifyQuery, [1 => [$this->_id, 'Integer']]);
+      if ($verifyResult->fetch()) {
+        CRM_Core_Error::debug_log_message("EditHistory - Verified DB values: start_date='" . $verifyResult->start_date . "', end_date='" . ($verifyResult->end_date ?: 'NULL') . "'");
+      }
       
       CRM_Core_Session::setStatus(
         ts('Address history has been updated successfully.'),
@@ -167,6 +196,7 @@ class CRM_Addresshistory_Form_EditHistory extends CRM_Core_Form {
       );
       
     } catch (Exception $e) {
+      CRM_Core_Error::debug_log_message("EditHistory - Error: " . $e->getMessage());
       CRM_Core_Session::setStatus(
         ts('Error updating address history: %1', [1 => $e->getMessage()]),
         ts('Error'),
