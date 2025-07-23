@@ -67,26 +67,11 @@
 CRM.$(function($) {
   var formSubmitted = false;
   
-  // Add functionality to easily clear the end date
-  if ($('#end_date').length > 0) {
-    // Add a clear button next to the end date field
-    var clearButton = $('<button type="button" class="btn btn-secondary btn-sm" style="margin-left: 5px;" title="Clear end date to mark as current">' +
-                       '<i class="crm-i fa-times"></i> Clear</button>');
-    
-    $('#end_date').parent().append(clearButton);
-    
-    clearButton.on('click', function(e) {
-      e.preventDefault();
-      $('#end_date').val('').trigger('change');
-      console.log('Address History Edit: End date cleared');
-    });
-  }
-  
   // Track when the form is actually submitted
   $('form.CRM_Addresshistory_Form_EditHistory').on('submit', function() {
     formSubmitted = true;
     
-    // Log form values before submission
+    // Log form values before submission for debugging
     var startDate = $('#start_date').val();
     var endDate = $('#end_date').val();
     console.log('Address History Edit: Form submitted with start_date="' + startDate + '", end_date="' + endDate + '"');
@@ -120,7 +105,7 @@ CRM.$(function($) {
             // No parent window, reload current window
             window.location.reload();
           }
-        }, 500); // Give a bit more time for the success message to be processed
+        }, 500);
       }
       
       // Also check if we've been redirected to the address history page
