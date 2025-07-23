@@ -101,19 +101,28 @@ class CRM_Addresshistory_Form_EditHistory extends CRM_Core_Form {
   public static function formRule($values, $files, $self) {
     $errors = [];
     
-    if (!empty($values['start_date']) && !empty($values['end_date'])) {
-      if (strtotime($values['start_date']) >= strtotime($values['end_date'])) {
-        $errors['end_date'] = ts('End date must be after start date');
+    // Debug: Log form validation values
+    CRM_Core_Error::debug_log_message("EditHistory formRule - Values: " . print_r($values, true));
+    
+    if (!empty($values['start_date']) && !empty($values['end_date_value']) && $values['end_date_type'] === 'specific') {
+      if (strtotime($values['start_date']) >= strtotime($values['end_date_value'])) {
+        $errors['end_date_value'] = ts('End date must be after start date');
       }
     }
     
     // Check for overlapping records for the same contact/location type
+    // Only if we have a specific end date or if we're setting to current
     if (!empty($values['start_date'])) {
+      $endDateForValidation = null;
+      if ($values['end_date_type'] === 'specific' && !empty($values['end_date_value'])) {
+        $endDateForValidation = $values['end_date_value'];
+      }
+      
       $overlaps = self::checkForOverlaps(
         $self->_contactId,
         $self->_addressHistory->location_type_id,
         $values['start_date'],
-        $values['end_date'],
+        $endDateForValidation,
         $self->_id
       );
       
@@ -121,6 +130,8 @@ class CRM_Addresshistory_Form_EditHistory extends CRM_Core_Form {
         $errors['start_date'] = ts('This date range overlaps with another address history record');
       }
     }
+    
+    CRM_Core_Error::debug_log_message("EditHistory formRule - Errors: " . print_r($errors, true));
     
     return $errors;
   }
@@ -158,46 +169,67 @@ class CRM_Addresshistory_Form_EditHistory extends CRM_Core_Form {
   public function postProcess() {
     $values = $this->exportValues();
     
-    // Debug: Log the raw form values
-    CRM_Core_Error::debug_log_message("EditHistory - Form values: " . print_r($values, true));
+    // Debug: Log the raw form values and POST data
+    CRM_Core_Error::debug_log_message("EditHistory postProcess - exportValues(): " . print_r($values, true));
+    CRM_Core_Error::debug_log_message("EditHistory postProcess - POST data: " . print_r($_POST, true));
     
     try {
+      // Store original values for comparison
+      $originalEndDate = $this->_addressHistory->end_date;
+      CRM_Core_Error::debug_log_message("EditHistory postProcess - Original end_date: " . ($originalEndDate ?: 'NULL'));
+      
       // Update the address history record
       $this->_addressHistory->start_date = $values['start_date'];
       
       // Handle end date based on radio button selection
       $endDateType = $values['end_date_type'] ?? 'current';
       
-      CRM_Core_Error::debug_log_message("EditHistory - End date type selected: " . $endDateType);
+      CRM_Core_Error::debug_log_message("EditHistory postProcess - End date type selected: '" . $endDateType . "'");
       
       if ($endDateType === 'current') {
         // User selected "Current" - set end_date to NULL
         $this->_addressHistory->end_date = NULL;
-        CRM_Core_Error::debug_log_message("EditHistory - Setting end_date to NULL (current)");
-      } else {
+        CRM_Core_Error::debug_log_message("EditHistory postProcess - Setting end_date to NULL (current)");
+      } elseif ($endDateType === 'specific') {
         // User selected "Specific End Date" - use the date value
         $endDateValue = $values['end_date_value'] ?? '';
+        CRM_Core_Error::debug_log_message("EditHistory postProcess - Specific end date value: '" . $endDateValue . "'");
+        
         if (!empty($endDateValue)) {
-          $this->_addressHistory->end_date = CRM_Utils_Date::processDate($endDateValue);
-          CRM_Core_Error::debug_log_message("EditHistory - Setting end_date to: " . $this->_addressHistory->end_date);
+          $processedDate = CRM_Utils_Date::processDate($endDateValue);
+          $this->_addressHistory->end_date = $processedDate;
+          CRM_Core_Error::debug_log_message("EditHistory postProcess - Setting end_date to: '" . $processedDate . "'");
         } else {
           // If they selected specific but didn't provide a date, default to current
           $this->_addressHistory->end_date = NULL;
-          CRM_Core_Error::debug_log_message("EditHistory - No specific date provided, setting to NULL");
+          CRM_Core_Error::debug_log_message("EditHistory postProcess - No specific date provided, defaulting to NULL");
         }
+      } else {
+        // Fallback - if somehow we get an unexpected value
+        $this->_addressHistory->end_date = NULL;
+        CRM_Core_Error::debug_log_message("EditHistory postProcess - Unexpected end_date_type, defaulting to NULL");
       }
       
       $this->_addressHistory->modified_date = date('Y-m-d H:i:s');
       
+      // Log what we're about to save
+      CRM_Core_Error::debug_log_message("EditHistory postProcess - About to save: start_date='" . $this->_addressHistory->start_date . "', end_date='" . ($this->_addressHistory->end_date ?: 'NULL') . "'");
+      
       // Save and log the result
       $result = $this->_addressHistory->save();
-      CRM_Core_Error::debug_log_message("EditHistory - Save result: " . ($result ? 'SUCCESS' : 'FAILED'));
+      CRM_Core_Error::debug_log_message("EditHistory postProcess - Save result: " . ($result ? 'SUCCESS' : 'FAILED'));
       
       // Verify what was actually saved to the database
-      $verifyQuery = "SELECT start_date, end_date FROM civicrm_address_history WHERE id = %1";
+      $verifyQuery = "SELECT id, start_date, end_date FROM civicrm_address_history WHERE id = %1";
       $verifyResult = CRM_Core_DAO::executeQuery($verifyQuery, [1 => [$this->_id, 'Integer']]);
       if ($verifyResult->fetch()) {
-        CRM_Core_Error::debug_log_message("EditHistory - Verified DB values: start_date='" . $verifyResult->start_date . "', end_date='" . ($verifyResult->end_date ?: 'NULL') . "'");
+        CRM_Core_Error::debug_log_message("EditHistory postProcess - DB verification: id=" . $verifyResult->id . ", start_date='" . $verifyResult->start_date . "', end_date='" . ($verifyResult->end_date ?: 'NULL') . "'");
+        
+        // Additional check: did the end_date actually change?
+        $actualChange = ($originalEndDate !== $verifyResult->end_date);
+        CRM_Core_Error::debug_log_message("EditHistory postProcess - End date actually changed: " . ($actualChange ? 'YES' : 'NO'));
+      } else {
+        CRM_Core_Error::debug_log_message("EditHistory postProcess - ERROR: Could not verify saved record!");
       }
       
       CRM_Core_Session::setStatus(
@@ -207,7 +239,8 @@ class CRM_Addresshistory_Form_EditHistory extends CRM_Core_Form {
       );
       
     } catch (Exception $e) {
-      CRM_Core_Error::debug_log_message("EditHistory - Error: " . $e->getMessage());
+      CRM_Core_Error::debug_log_message("EditHistory postProcess - Exception: " . $e->getMessage());
+      CRM_Core_Error::debug_log_message("EditHistory postProcess - Exception trace: " . $e->getTraceAsString());
       CRM_Core_Session::setStatus(
         ts('Error updating address history: %1', [1 => $e->getMessage()]),
         ts('Error'),
