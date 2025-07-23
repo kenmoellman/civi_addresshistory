@@ -106,7 +106,16 @@ CRM.$(function($) {
     var startDate = $('#start_date').val();
     var endDateType = $('input[name="end_date_type"]:checked').val();
     var endDateValue = $('#end_date_value').val();
-    console.log('Address History Edit: Form submitted with start_date="' + startDate + '", end_date_type="' + endDateType + '", end_date_value="' + endDateValue + '"');
+    
+    console.log('Address History Edit: Form submission details:');
+    console.log('  - start_date: "' + startDate + '"');
+    console.log('  - end_date_type: "' + endDateType + '"');
+    console.log('  - end_date_value: "' + endDateValue + '"');
+    console.log('  - end_date_section_visible: ' + $('#specific-end-date-section').is(':visible'));
+    
+    // Also log all form data being submitted
+    var formData = $(this).serialize();
+    console.log('Address History Edit: Serialized form data: ' + formData);
     
     // Start monitoring for success only AFTER form submission
     var checkInterval = setInterval(function() {
