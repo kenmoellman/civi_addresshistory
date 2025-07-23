@@ -68,6 +68,11 @@
                      title="{ts}Edit History Record{/ts}">
                     <i class="crm-i fa-pencil"></i> {ts}Edit{/ts}
                   </a>
+                  <a href="{crmURL p='civicrm/contact/view/address-history/delete' q="reset=1&cid=`$contactId`&id=`$address.id`"}" 
+                     class="action-item crm-hover-button crm-popup delete-action" 
+                     title="{ts}Delete History Record{/ts}">
+                    <i class="crm-i fa-trash"></i> {ts}Delete{/ts}
+                  </a>
                 </td>
               {/if}
             </tr>
@@ -155,6 +160,16 @@ CRM.$(function($) {
 
 .selector tr:hover {
   background-color: #e8f4f8;
+}
+
+.delete-action {
+  color: #d9534f !important;
+  margin-left: 8px;
+}
+
+.delete-action:hover {
+  color: #c9302c !important;
+  background-color: #f2dede !important;
 }
 </style>
 {/literal}
