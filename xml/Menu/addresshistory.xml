@@ -18,4 +18,13 @@
     <is_public>false</is_public>
     <weight>301</weight>
   </item>
+  <item>
+    <path>civicrm/contact/view/address-history/delete</path>
+    <title>Delete Address History</title>
+    <page_callback>CRM_Addresshistory_Form_DeleteHistory</page_callback>
+    <access_arguments>administer CiviCRM</access_arguments>
+    <page_type>1</page_type>
+    <is_public>false</is_public>
+    <weight>302</weight>
+  </item>
 </menu>
