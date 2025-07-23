@@ -105,14 +105,42 @@ CRM.$(function($) {
     $('#address-history-back-button').hide();
   }
   
-  // Refresh the address history tab after editing
+  // Enhanced refresh handling for address history tab
   $(document).on('crmFormSuccess', function(e) {
-    if ($('#tab_address_history').length > 0) {
-      // We're in a tab, refresh the tab content
-      $('#tab_address_history').crmSnippet('refresh');
-    } else {
-      // We're on a standalone page, reload
-      window.location.reload();
+    console.log('Address History: crmFormSuccess event detected');
+    setTimeout(function() {
+      if ($('#tab_address_history').length > 0) {
+        // We're in a tab, refresh the tab content
+        console.log('Address History: Refreshing tab content');
+        $('#tab_address_history').crmSnippet('refresh');
+      } else {
+        // We're on a standalone page, reload
+        console.log('Address History: Reloading page');
+        window.location.reload();
+      }
+    }, 1000); // Wait a bit longer to ensure the update is committed
+  });
+  
+  // Also listen for when dialogs close after form success
+  $(document).on('dialogclose', '.ui-dialog', function() {
+    // Check if this was an address history form dialog
+    if ($(this).find('form.CRM_Addresshistory_Form_EditHistory, form.CRM_Addresshistory_Form_DeleteHistory').length > 0) {
+      console.log('Address History: Dialog closed after form submission');
+      setTimeout(function() {
+        if ($('#tab_address_history').length > 0) {
+          $('#tab_address_history').crmSnippet('refresh');
+        } else {
+          window.location.reload();
+        }
+      }, 500);
+    }
+  });
+  
+  // Force refresh when returning to address history tab
+  $(document).on('crmLoad', function() {
+    if ($('#tab_address_history:visible').length > 0) {
+      console.log('Address History: Tab became visible, checking for refresh');
+      // Tab is now visible, could refresh if needed
     }
   });
 });
