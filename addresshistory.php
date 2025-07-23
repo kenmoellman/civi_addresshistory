@@ -1,12 +1,4 @@
-/**
- * Implements hook_civicrm_pre().
- * 
- * This hook is called before any database operation and can catch contact deletions during merge.
- */
-function addresshistory_civicrm_pre($op, $objectName, $id, &$params) {
-  // If a contact is being deleted, this might be part of a merge
-  if ($op == 'delete' && $objectName == 'Contact' && $id) {
-    // Check<?php
+<?php
 require_once 'addresshistory.civix.php';
 
 use CRM_Addresshistory_ExtensionUtil as E;
