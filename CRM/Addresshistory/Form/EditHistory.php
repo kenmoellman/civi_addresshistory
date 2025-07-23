@@ -206,14 +206,25 @@ class CRM_Addresshistory_Form_EditHistory extends CRM_Core_Form {
       }
       
       // Use direct SQL to update the record to avoid DAO NULL issues
-      $updateQuery = "UPDATE civicrm_address_history SET start_date = %1, end_date = %2, modified_date = NOW() WHERE id = %3";
-      $updateParams = [
-        1 => [$values['start_date'], 'String'],
-        2 => [$newEndDate, 'String'], // CiviCRM will handle NULL properly in executeQuery
-        3 => [$this->_id, 'Integer'],
-      ];
+      if ($newEndDate === NULL) {
+        // When setting to NULL, we need to handle it differently in the SQL
+        $updateQuery = "UPDATE civicrm_address_history SET start_date = %1, end_date = NULL, modified_date = NOW() WHERE id = %2";
+        $updateParams = [
+          1 => [$values['start_date'], 'String'],
+          2 => [$this->_id, 'Integer'],
+        ];
+      } else {
+        // When setting to a specific date
+        $updateQuery = "UPDATE civicrm_address_history SET start_date = %1, end_date = %2, modified_date = NOW() WHERE id = %3";
+        $updateParams = [
+          1 => [$values['start_date'], 'String'],
+          2 => [$newEndDate, 'String'],
+          3 => [$this->_id, 'Integer'],
+        ];
+      }
       
-      CRM_Core_Error::debug_log_message("EditHistory postProcess - About to execute SQL update with params: " . print_r($updateParams, true));
+      CRM_Core_Error::debug_log_message("EditHistory postProcess - About to execute SQL: " . $updateQuery);
+      CRM_Core_Error::debug_log_message("EditHistory postProcess - With params: " . print_r($updateParams, true));
       
       $result = CRM_Core_DAO::executeQuery($updateQuery, $updateParams);
       CRM_Core_Error::debug_log_message("EditHistory postProcess - SQL update result: " . ($result ? 'SUCCESS' : 'FAILED'));
