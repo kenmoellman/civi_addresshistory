@@ -12,7 +12,7 @@ This extension provides comprehensive address history tracking for contacts in C
 - **Smart Change Detection**: Differentiates between significant changes (new history record) and minor updates (update existing record)
 - **Start/End Dates**: Tracks when each address was active for a contact
 - **Contact Merge Support**: Properly handles address history during contact merges with user-selectable options
-- **API Support**: Provides API endpoints for programmatic access to address history
+- **API Support**: Provides both APIv3 and APIv4 endpoints for programmatic access to address history
 - **SearchKit Integration**: Address history data is searchable in SearchKit (CiviCRM 5.47+)
 - **Location Type Tracking**: Maintains location type information in history
 - **Primary Address Handling**: Properly handles primary address changes and transitions
@@ -131,9 +131,99 @@ The merge interface displays the number of address history records for each cont
 
 ### API Usage
 
-The extension provides several API endpoints:
+The extension provides both APIv3 (legacy) and APIv4 (recommended) endpoints for programmatic access.
 
-#### Get Address History
+#### APIv4 Usage (Recommended)
+
+APIv4 provides a modern, more powerful interface with better SearchKit integration:
+
+##### Get Address History
+```php
+// Basic get
+$addressHistory = \Civi\Api4\AddressHistory::get()
+  ->addWhere('contact_id', '=', 123)
+  ->addOrderBy('start_date', 'DESC')
+  ->execute();
+
+// With filters and joins
+$addressHistory = \Civi\Api4\AddressHistory::get()
+  ->addSelect('*', 'contact_id.display_name', 'location_type_id.display_name')
+  ->addWhere('contact_id', '=', 123)
+  ->addWhere('location_type_id', '=', 1)
+  ->addWhere('end_date', 'IS NULL') // Only current addresses
+  ->addOrderBy('start_date', 'DESC')
+  ->setLimit(25)
+  ->execute();
+```
+
+###### Create Address History Record
+```php
+$result = \Civi\Api4\AddressHistory::create()
+  ->setValues([
+    'contact_id' => 123,
+    'location_type_id' => 1,
+    'street_address' => '123 Main St',
+    'city' => 'Anytown',
+    'state_province_id' => 1001,
+    'postal_code' => '12345',
+    'country_id' => 1228,
+    'start_date' => '2023-01-01',
+    'is_primary' => TRUE,
+  ])
+  ->execute();
+```
+
+##### Update Address History Record
+```php
+$result = \Civi\Api4\AddressHistory::update()
+  ->addWhere('id', '=', 456)
+  ->setValues([
+    'end_date' => '2023-12-31',
+  ])
+  ->execute();
+```
+
+###### Get Address History Count
+```php
+$count = \Civi\Api4\AddressHistory::get()
+  ->addWhere('contact_id', '=', 123)
+  ->selectRowCount()
+  ->execute()
+  ->count();
+```
+
+###### Delete Address History Record
+```php
+$result = \Civi\Api4\AddressHistory::delete()
+  ->addWhere('id', '=', 456)
+  ->execute();
+```
+
+##### Advanced Queries
+```php
+// Get address history with location changes
+$locationChanges = \Civi\Api4\AddressHistory::get()
+  ->addSelect('*', 'contact_id.display_name')
+  ->addWhere('contact_id', '=', 123)
+  ->addWhere('end_date', 'IS NOT NULL')
+  ->addGroupBy('location_type_id')
+  ->addOrderBy('start_date', 'ASC')
+  ->execute();
+
+// Get contacts who moved in the last year
+$recentMoves = \Civi\Api4\AddressHistory::get()
+  ->addSelect('contact_id', 'COUNT(*) AS move_count')
+  ->addWhere('start_date', '>=', date('Y-m-d', strtotime('-1 year')))
+  ->addGroupBy('contact_id')
+  ->addHaving('COUNT(*)', '>', 1)
+  ->execute();
+```
+
+#### APIv3 Usage (Legacy)
+
+APIv3 is still supported for backward compatibility:
+
+##### Get Address History
 ```php
 $result = civicrm_api3('AddressHistory', 'get', [
   'contact_id' => 123,
@@ -170,7 +260,7 @@ $result = civicrm_api3('AddressHistory', 'delete', [
 
 ### SearchKit Integration
 
-Address history data is fully integrated with SearchKit, allowing you to:
+Address history data is fully integrated with SearchKit via APIv4, allowing you to:
 
 - Create searches across address history data
 - Build custom displays and dashboards
@@ -215,7 +305,9 @@ com.moellman.addresshistory/
 │   ├── install.sql                             # Database schema (manual install)
 │   ├── triggers.sql                            # Database triggers (reference)
 │   └── uninstall.sql                           # Cleanup SQL
-├── CRM/
+├── Civi/
+│   └── Api4/
+│       └── AddressHistory.php                  # APIv4 entity definition
 │   └── Addresshistory/
 │       ├── BAO/
 │       │   └── AddressHistory.php              # Business logic layer
@@ -229,7 +321,7 @@ com.moellman.addresshistory/
 │       ├── Upgrader.php                        # Installation/upgrade logic
 │       └── Upgrader/
 │           └── Base.php                        # Base upgrader class
-├── templates/
+├── CRM/
 │   └── CRM/
 │       └── Addresshistory/
 │           ├── Page/
@@ -237,7 +329,7 @@ com.moellman.addresshistory/
 │           └── Form/
 │               ├── EditHistory.tpl             # Edit form template
 │               └── DeleteHistory.tpl           # Delete form template
-├── xml/
+├── templates/
 │   └── Menu/
 │       └── addresshistory.xml                  # Menu configuration
 └── api/
@@ -356,7 +448,18 @@ To test the extension thoroughly:
 
 5. **API Testing**:
    ```php
-   // Test all API endpoints
+   // Test APIv4 endpoints (recommended)
+   $result = \Civi\Api4\AddressHistory::get()
+     ->addWhere('contact_id', '=', 123)
+     ->execute();
+   
+   $count = \Civi\Api4\AddressHistory::get()
+     ->addWhere('contact_id', '=', 123)
+     ->selectRowCount()
+     ->execute()
+     ->count();
+   
+   // Test APIv3 endpoints (legacy)
    $result = civicrm_api3('AddressHistory', 'get', ['contact_id' => 123]);
    $result = civicrm_api3('AddressHistory', 'getcount', ['contact_id' => 123]);
    ```
@@ -364,12 +467,13 @@ To test the extension thoroughly:
 ## Version History
 
 ### Version 0.9.0 (Current)
-- Initial beta release
+- Initial alpha release
 - Database trigger-based address history tracking
 - Address history tab on contact pages
 - Administrator editing and deletion capabilities
 - API support for programmatic access
 - Enhanced contact merge support with user options
+- APIv4 support for modern CiviCRM integration (with APIv3 legacy support)
 - SearchKit integration
 - Comprehensive coverage of all address changes
 - Automatic population of existing addresses during installation
