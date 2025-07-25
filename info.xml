@@ -25,6 +25,7 @@
     <namespace>CRM/Addresshistory</namespace>
     <format>24.02.1</format>
     <angularModule>crmAddresshistory</angularModule>
+    <apiVersion>4</apiVersion>
   </civix>
   <sql>
     <file>sql/install.sql</file>
