@@ -467,7 +467,7 @@ To test the extension thoroughly:
 ## Version History
 
 ### Version 0.9.0 (Current)
-- Initial alpha release
+- Beta release with APIv4 support added
 - Database trigger-based address history tracking
 - Address history tab on contact pages
 - Administrator editing and deletion capabilities
